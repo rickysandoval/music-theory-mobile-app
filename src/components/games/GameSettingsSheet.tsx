@@ -45,20 +45,46 @@ export function GameSettingsSheet({
           </Text>
 
           <View style={styles.settingsContainer}>
+            <Text variant="labelMedium" color="secondary" style={styles.sectionLabel}>
+              Root Notes
+            </Text>
+            
             <Switch
-              label="Sharps & Flats"
-              description="Include chords like F#, Bb"
-              value={settings.includeSharpsFlatRoots}
+              label="Diatonic Notes"
+              description="Natural notes (C, D, E, F, G, A, B)"
+              value={settings.includeDiatonicRoots}
               onValueChange={(value) => 
-                onSettingsChange({ includeSharpsFlatRoots: value })
+                onSettingsChange({ includeDiatonicRoots: value })
+              }
+            />
+            
+            <Switch
+              label="Accidentals"
+              description="Sharps & flats (F#, Bb, etc.)"
+              value={settings.includeAccidentalRoots}
+              onValueChange={(value) => 
+                onSettingsChange({ includeAccidentalRoots: value })
               }
             />
             
             <View style={[styles.divider, { backgroundColor: theme.border }]} />
             
+            <Text variant="labelMedium" color="secondary" style={styles.sectionLabel}>
+              Chord Quality
+            </Text>
+            
+            <Switch
+              label="Major Chords"
+              description="C, D, E, F, G, A, B"
+              value={settings.includeMajorChords}
+              onValueChange={(value) => 
+                onSettingsChange({ includeMajorChords: value })
+              }
+            />
+            
             <Switch
               label="Minor Chords"
-              description="Include Am, Dm, Em, etc."
+              description="Am, Dm, Em, etc."
               value={settings.includeMinorChords}
               onValueChange={(value) => 
                 onSettingsChange({ includeMinorChords: value })
@@ -102,8 +128,12 @@ const styles = StyleSheet.create({
   settingsContainer: {
     marginBottom: spacing[4],
   },
+  sectionLabel: {
+    marginBottom: spacing[2],
+    marginTop: spacing[1],
+  },
   divider: {
     height: 1,
-    marginVertical: spacing[2],
+    marginVertical: spacing[3],
   },
 });

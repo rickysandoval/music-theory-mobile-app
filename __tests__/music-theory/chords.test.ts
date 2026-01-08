@@ -3,13 +3,14 @@
  */
 
 import {
-  parseChordName,
-  buildChordNotes,
-  generateRandomChord,
-  isNoteInChord,
-  isNoteCorrectAtPosition,
-  checkChordAnswer,
-  identifyChord,
+    buildChordNotes,
+    checkChordAnswer,
+    generateAllChords,
+    generateRandomChord,
+    identifyChord,
+    isNoteCorrectAtPosition,
+    isNoteInChord,
+    parseChordName,
 } from '../../src/lib/music-theory/chords';
 import type { Chord, ChordGameSettings } from '../../src/lib/music-theory/types';
 
@@ -70,7 +71,9 @@ describe('buildChordNotes', () => {
 
 describe('generateRandomChord', () => {
   const defaultSettings: ChordGameSettings = {
-    includeSharpsFlatRoots: true,
+    includeDiatonicRoots: true,
+    includeAccidentalRoots: true,
+    includeMajorChords: true,
     includeMinorChords: true,
   };
 
@@ -86,7 +89,9 @@ describe('generateRandomChord', () => {
 
   it('should not include minor chords when disabled', () => {
     const settings: ChordGameSettings = {
-      includeSharpsFlatRoots: true,
+      includeDiatonicRoots: true,
+      includeAccidentalRoots: true,
+      includeMajorChords: true,
       includeMinorChords: false,
     };
 
@@ -98,9 +103,26 @@ describe('generateRandomChord', () => {
     }
   });
 
-  it('should not include sharps/flats when disabled', () => {
+  it('should not include major chords when disabled', () => {
     const settings: ChordGameSettings = {
-      includeSharpsFlatRoots: false,
+      includeDiatonicRoots: true,
+      includeAccidentalRoots: true,
+      includeMajorChords: false,
+      includeMinorChords: true,
+    };
+
+    for (let i = 0; i < 20; i++) {
+      const chord = generateRandomChord(settings);
+      expect(chord.isMinor).toBe(true);
+      expect(chord.name).toContain('m');
+    }
+  });
+
+  it('should not include accidentals when disabled', () => {
+    const settings: ChordGameSettings = {
+      includeDiatonicRoots: true,
+      includeAccidentalRoots: false,
+      includeMajorChords: true,
       includeMinorChords: true,
     };
 
@@ -108,6 +130,20 @@ describe('generateRandomChord', () => {
       const chord = generateRandomChord(settings);
       expect(chord.root).not.toContain('#');
       expect(chord.root).not.toContain('b');
+    }
+  });
+
+  it('should only include accidentals when diatonic disabled', () => {
+    const settings: ChordGameSettings = {
+      includeDiatonicRoots: false,
+      includeAccidentalRoots: true,
+      includeMajorChords: true,
+      includeMinorChords: true,
+    };
+
+    for (let i = 0; i < 20; i++) {
+      const chord = generateRandomChord(settings);
+      expect(chord.root.includes('#') || chord.root.includes('b')).toBe(true);
     }
   });
 
@@ -306,5 +342,137 @@ describe('identifyChord', () => {
   it('should return null for wrong number of notes', () => {
     expect(identifyChord(['C', 'E'])).toBe(null);
     expect(identifyChord(['C', 'E', 'G', 'B'])).toBe(null);
+  });
+});
+
+describe('generateAllChords', () => {
+  it('should generate all major diatonic chords', () => {
+    const settings: ChordGameSettings = {
+      includeDiatonicRoots: true,
+      includeAccidentalRoots: false,
+      includeMajorChords: true,
+      includeMinorChords: false,
+    };
+
+    const chords = generateAllChords(settings);
+    
+    // Should have 7 natural major chords (C, D, E, F, G, A, B)
+    expect(chords.length).toBe(7);
+    
+    // All should be major
+    chords.forEach(chord => {
+      expect(chord.isMinor).toBe(false);
+    });
+    
+    // All should have natural roots
+    chords.forEach(chord => {
+      expect(chord.root).not.toContain('#');
+      expect(chord.root).not.toContain('b');
+    });
+  });
+
+  it('should include minor chords when enabled', () => {
+    const settings: ChordGameSettings = {
+      includeDiatonicRoots: true,
+      includeAccidentalRoots: false,
+      includeMajorChords: true,
+      includeMinorChords: true,
+    };
+
+    const chords = generateAllChords(settings);
+    
+    // Should have 14 chords (7 major + 7 minor)
+    expect(chords.length).toBe(14);
+    
+    const majorChords = chords.filter(c => !c.isMinor);
+    const minorChords = chords.filter(c => c.isMinor);
+    
+    expect(majorChords.length).toBe(7);
+    expect(minorChords.length).toBe(7);
+  });
+
+  it('should include accidental roots when enabled', () => {
+    const settings: ChordGameSettings = {
+      includeDiatonicRoots: true,
+      includeAccidentalRoots: true,
+      includeMajorChords: true,
+      includeMinorChords: false,
+    };
+
+    const chords = generateAllChords(settings);
+    
+    // Should have more than just diatonic chords
+    expect(chords.length).toBeGreaterThan(7);
+    
+    // Should include some with sharps or flats
+    const hasSharpFlat = chords.some(
+      c => c.root.includes('#') || c.root.includes('b')
+    );
+    expect(hasSharpFlat).toBe(true);
+    
+    // Should also include diatonic
+    const hasDiatonic = chords.some(
+      c => !c.root.includes('#') && !c.root.includes('b')
+    );
+    expect(hasDiatonic).toBe(true);
+  });
+
+  it('should only include accidentals when diatonic disabled', () => {
+    const settings: ChordGameSettings = {
+      includeDiatonicRoots: false,
+      includeAccidentalRoots: true,
+      includeMajorChords: true,
+      includeMinorChords: false,
+    };
+
+    const chords = generateAllChords(settings);
+    
+    // Should have some accidental major chords
+    expect(chords.length).toBeGreaterThan(0);
+    
+    // All should have accidentals
+    chords.forEach(chord => {
+      expect(chord.root.includes('#') || chord.root.includes('b')).toBe(true);
+    });
+  });
+
+  it('should return shuffled chords (not always in same order)', () => {
+    const settings: ChordGameSettings = {
+      includeDiatonicRoots: true,
+      includeAccidentalRoots: true,
+      includeMajorChords: true,
+      includeMinorChords: true,
+    };
+
+    // Generate multiple times and check that at least one ordering is different
+    const results: string[][] = [];
+    for (let i = 0; i < 5; i++) {
+      const chords = generateAllChords(settings);
+      results.push(chords.map(c => c.name));
+    }
+    
+    // At least two different orderings should exist (very high probability)
+    const uniqueOrderings = new Set(results.map(r => r.join(',')));
+    expect(uniqueOrderings.size).toBeGreaterThan(1);
+  });
+
+  it('should generate valid chord objects', () => {
+    const settings: ChordGameSettings = {
+      includeDiatonicRoots: true,
+      includeAccidentalRoots: true,
+      includeMajorChords: true,
+      includeMinorChords: true,
+    };
+
+    const chords = generateAllChords(settings);
+    
+    chords.forEach(chord => {
+      expect(chord).toHaveProperty('name');
+      expect(chord).toHaveProperty('notes');
+      expect(chord).toHaveProperty('root');
+      expect(chord).toHaveProperty('isMinor');
+      expect(chord.notes).toHaveLength(3);
+      expect(chord.notes[0]).toBe(chord.root);
+    });
   });
 });

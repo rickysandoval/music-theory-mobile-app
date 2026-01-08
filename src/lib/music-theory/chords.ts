@@ -2,8 +2,8 @@
  * Chord generation and manipulation utilities
  */
 
-import { COMMON_CHORDS, ENHARMONIC_MAP, MAJOR_INTERVALS, MINOR_INTERVALS, NOTES, NOTES_WITH_FLATS, NATURAL_NOTES } from './constants';
-import { getNoteIndex, getNoteFromIndex, getNoteLetterAtInterval, areEnharmonic } from './notes';
+import { COMMON_CHORDS, ENHARMONIC_MAP, MAJOR_INTERVALS, MINOR_INTERVALS, NATURAL_NOTES, NOTES, NOTES_WITH_FLATS } from './constants';
+import { areEnharmonic, getNoteIndex, getNoteLetterAtInterval } from './notes';
 import type { Chord, ChordGameSettings } from './types';
 
 /**
@@ -77,13 +77,21 @@ function findNoteWithLetter(targetLetter: string, chromaticIndex: number, noteCo
 export function generateRandomChord(settings: ChordGameSettings, currentChord: Chord | null = null): Chord {
   let availableChords = [...COMMON_CHORDS];
   
-  // Filter based on settings
+  // Filter based on chord quality settings
+  if (!settings.includeMajorChords) {
+    availableChords = availableChords.filter(chord => chord.includes('m'));
+  }
   if (!settings.includeMinorChords) {
     availableChords = availableChords.filter(chord => !chord.includes('m'));
   }
   
-  if (!settings.includeSharpsFlatRoots) {
-    availableChords = availableChords.filter(chord => !chord.includes('#') && !chord.includes('b'));
+  // Filter based on root note settings
+  const hasAccidental = (chord: string) => chord.includes('#') || chord.includes('b');
+  if (!settings.includeDiatonicRoots) {
+    availableChords = availableChords.filter(chord => hasAccidental(chord.replace('m', '')));
+  }
+  if (!settings.includeAccidentalRoots) {
+    availableChords = availableChords.filter(chord => !hasAccidental(chord.replace('m', '')));
   }
   
   // Avoid repeating the current chord
@@ -141,6 +149,47 @@ export function checkChordAnswer(userNotes: string[], chord: Chord): boolean {
   // Check each position: Root (0), Third (1), Fifth (2)
   // Each user note must match the corresponding chord note (considering enharmonics)
   return userNotes.every((note, index) => isNoteCorrectAtPosition(note, index, chord));
+}
+
+/**
+ * Generates all chords based on settings (for test mode)
+ * Returns shuffled array of all matching chords
+ */
+export function generateAllChords(settings: ChordGameSettings): Chord[] {
+  let availableChordNames = [...COMMON_CHORDS];
+  
+  // Filter based on chord quality settings
+  const hasAccidental = (chord: string) => chord.includes('#') || chord.includes('b');
+  
+  if (!settings.includeMajorChords) {
+    availableChordNames = availableChordNames.filter(chord => chord.includes('m'));
+  }
+  if (!settings.includeMinorChords) {
+    availableChordNames = availableChordNames.filter(chord => !chord.includes('m'));
+  }
+  
+  // Filter based on root note settings
+  if (!settings.includeDiatonicRoots) {
+    availableChordNames = availableChordNames.filter(chord => hasAccidental(chord.replace('m', '')));
+  }
+  if (!settings.includeAccidentalRoots) {
+    availableChordNames = availableChordNames.filter(chord => !hasAccidental(chord.replace('m', '')));
+  }
+  
+  // Build full chord objects
+  const chords = availableChordNames.map(chordName => {
+    const { root, isMinor } = parseChordName(chordName);
+    const notes = buildChordNotes(root, isMinor);
+    return { name: chordName, notes, root, isMinor };
+  });
+  
+  // Shuffle using Fisher-Yates
+  for (let i = chords.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [chords[i], chords[j]] = [chords[j], chords[i]];
+  }
+  
+  return chords;
 }
 
 /**

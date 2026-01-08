@@ -3,30 +3,47 @@
  * Mobile-optimized: tap to select slots, piano keys to input notes
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, StyleSheet, Vibration, Pressable } from 'react-native';
+import { playChord, playNote } from '@/src/lib/audio';
+import {
+    areEnharmonic,
+    checkChordAnswer,
+    Chord,
+    generateRandomChord,
+    getCorrectSpellingForChordPosition,
+    getKeyboardStartKey,
+    isNoteCorrectAtPosition,
+} from '@/src/lib/music-theory';
+import { useProgress, useSettings } from '@/src/stores';
+import { colors, spacing } from '@/src/theme';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { Text } from '../ui/Text';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Pressable, StyleSheet, Vibration, View } from 'react-native';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
+import { Text } from '../ui/Text';
 import { useTheme } from '../ui/ThemeContext';
-import { PianoKeyboard } from './PianoKeyboard';
-import { NoteSlot } from './NoteSlot';
 import { GameSettingsSheet } from './GameSettingsSheet';
-import { colors, spacing } from '@/src/theme';
-import { 
-  Chord, 
-  generateRandomChord, 
-  checkChordAnswer, 
-  isNoteCorrectAtPosition,
-  areEnharmonic,
-  getKeyboardStartKey,
-  getCorrectSpellingForChordPosition,
-} from '@/src/lib/music-theory';
-import { playNote, playChord } from '@/src/lib/audio';
-import { useSettings, useProgress } from '@/src/stores';
+import { NoteSlot } from './NoteSlot';
+import { PianoKeyboard } from './PianoKeyboard';
 
-export function ChordSpellingGame() {
+interface ChordSpellingGameProps {
+  // Optional: for test mode
+  isTestMode?: boolean;
+  testChord?: Chord | null;
+  onTestResult?: (wasCorrect: boolean) => void;
+  showProgress?: { current: number; total: number };
+  isReviewMode?: boolean;
+  onSettingsPress?: () => void;
+}
+
+export function ChordSpellingGame({
+  isTestMode = false,
+  testChord = null,
+  onTestResult,
+  showProgress,
+  isReviewMode = false,
+  onSettingsPress,
+}: ChordSpellingGameProps) {
   const { theme, isDark } = useTheme();
   const { settings, updateChordSettings } = useSettings();
   const { recordChordResult } = useProgress();
@@ -38,6 +55,8 @@ export function ChordSpellingGame() {
   const [showFeedback, setShowFeedback] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [hasChecked, setHasChecked] = useState(false); // Track if we've checked answers
+  const [isFirstTry, setIsFirstTry] = useState(true); // Track if this is their first attempt (for test mode)
+  const [hasReportedResult, setHasReportedResult] = useState(false); // Ensure we only report once per chord
 
   // Compute which notes are correct (only after all slots filled)
   // Now checks position: slot 1 must be third, slot 2 must be fifth
@@ -62,15 +81,31 @@ export function ChordSpellingGame() {
     return null;
   }, [noteCorrectness]);
 
-  // Generate initial chord when settings are loaded
+  // Sync with testChord when in test mode
   useEffect(() => {
-    if (settings && !currentChord) {
+    if (isTestMode && testChord) {
+      setCurrentChord(testChord);
+      setUserNotes([testChord.root, '', '']);
+      setSelectedIndex(1);
+      setIsComplete(false);
+      setShowFeedback(false);
+      setHasChecked(false);
+      setIsFirstTry(true);
+      setHasReportedResult(false);
+    }
+  }, [isTestMode, testChord]);
+
+  // Generate initial chord when settings are loaded (practice mode only)
+  useEffect(() => {
+    if (!isTestMode && settings && !currentChord) {
       generateNewChord();
     }
-  }, [settings]);
+  }, [settings, isTestMode]);
 
   const generateNewChord = useCallback(() => {
     if (!settings) return;
+    // Don't generate new chord in test mode - use testChord instead
+    if (isTestMode) return;
     
     const newChord = generateRandomChord(settings.chordGame, currentChord);
     setCurrentChord(newChord);
@@ -79,7 +114,9 @@ export function ChordSpellingGame() {
     setIsComplete(false);
     setShowFeedback(false);
     setHasChecked(false);
-  }, [settings, currentChord]);
+    setIsFirstTry(true);
+    setHasReportedResult(false);
+  }, [settings, currentChord, isTestMode]);
 
   const handleSlotPress = useCallback((index: number) => {
     if (isComplete) return;
@@ -179,20 +216,38 @@ export function ChordSpellingGame() {
       const correct = checkChordAnswer(newNotes, currentChord);
       
       if (correct) {
+        // Correct answer
         setIsComplete(true);
         setShowFeedback(true);
         setSelectedIndex(null);
         Vibration.vibrate(100);
-        recordChordResult(true);
+        
+        // Only record progress in practice mode
+        if (!isTestMode) {
+          recordChordResult(true);
+        }
         
         // Play the chord on success
         setTimeout(() => {
           playChord(newNotes.filter(n => n !== ''));
         }, 200);
+      } else if (isTestMode) {
+        // Test mode: wrong answer = complete (no retries)
+        setIsComplete(true);
+        setShowFeedback(true);
+        setSelectedIndex(null);
+        setIsFirstTry(false); // Mark as incorrect
+        Vibration.vibrate([0, 100, 50, 100]); // Double vibration for wrong
+        
+        // Play what they entered so they can hear the difference
+        setTimeout(() => {
+          playChord(newNotes.filter(n => n !== ''));
+        }, 200);
       } else {
-        // Not all correct - we need to find the first incorrect and focus it
-        // This will happen on next render when noteCorrectness updates
-        // For now, find it manually (checking position-correctness)
+        // Practice mode: wrong answer = allow retries
+        setIsFirstTry(false);
+        
+        // Find the first incorrect note and focus it
         setTimeout(() => {
           for (let i = 1; i < newNotes.length; i++) {
             if (!isNoteCorrectAtPosition(newNotes[i], i, currentChord)) {
@@ -216,6 +271,25 @@ export function ChordSpellingGame() {
     }
   }, [userNotes]);
 
+  // Handle "Next Chord" or "Skip" in test mode
+  // NOTE: This must be defined BEFORE any early returns to maintain hook order
+  const handleNext = useCallback(() => {
+    if (isTestMode && onTestResult) {
+      if (!hasReportedResult) {
+        setHasReportedResult(true);
+        if (isComplete) {
+          // Completed correctly - report based on first try
+          onTestResult(isFirstTry);
+        } else {
+          // Skip = incorrect in test mode
+          onTestResult(false);
+        }
+      }
+    } else {
+      generateNewChord();
+    }
+  }, [isTestMode, onTestResult, isComplete, isFirstTry, hasReportedResult, generateNewChord]);
+
   if (!settings || !currentChord) {
     return (
       <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -226,22 +300,45 @@ export function ChordSpellingGame() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Header with settings */}
-      <View style={styles.header}>
-        <View style={styles.headerSpacer} />
-        <Pressable
-          onPress={() => setShowSettings(true)}
-          style={({ pressed }) => [
-            styles.settingsButton,
-            { 
-              backgroundColor: isDark ? colors.neutral[800] : colors.neutral[100],
-              opacity: pressed ? 0.7 : 1,
-            },
-          ]}
-        >
-          <FontAwesome name="sliders" size={18} color={theme.textSecondary} />
-        </Pressable>
-      </View>
+      {/* Progress indicator for test mode */}
+      {showProgress && (
+        <View style={styles.progressContainer}>
+          <Text variant="labelMedium" color="secondary">
+            {isReviewMode ? 'Reviewing: ' : ''}
+            {showProgress.current} / {showProgress.total}
+          </Text>
+          <View style={[styles.progressBar, { backgroundColor: theme.surfaceVariant }]}>
+            <View 
+              style={[
+                styles.progressFill, 
+                { 
+                  backgroundColor: colors.primary[500],
+                  width: `${(showProgress.current / showProgress.total) * 100}%`,
+                }
+              ]} 
+            />
+          </View>
+        </View>
+      )}
+
+      {/* Header with settings - only in practice mode */}
+      {!isTestMode && (
+        <View style={styles.header}>
+          <View style={styles.headerSpacer} />
+          <Pressable
+            onPress={onSettingsPress || (() => setShowSettings(true))}
+            style={({ pressed }) => [
+              styles.settingsButton,
+              { 
+                backgroundColor: isDark ? colors.neutral[800] : colors.neutral[100],
+                opacity: pressed ? 0.7 : 1,
+              },
+            ]}
+          >
+            <FontAwesome name="sliders" size={18} color={theme.textSecondary} />
+          </Pressable>
+        </View>
+      )}
 
       {/* Chord to spell */}
       <Card variant="filled" style={styles.chordCard}>
@@ -296,22 +393,39 @@ export function ChordSpellingGame() {
         </Text>
       )}
 
-      {/* Success feedback */}
+      {/* Feedback - success or failure */}
       {showFeedback && isComplete && (
         <Card 
           variant="outlined" 
-          style={[styles.feedbackCard, { borderColor: colors.success.main }]}
+          style={[
+            styles.feedbackCard, 
+            { 
+              borderColor: isFirstTry ? colors.success.main : colors.error.main,
+              backgroundColor: isFirstTry ? colors.success.light : colors.error.light,
+            }
+          ]}
         >
           <View style={styles.feedbackHeader}>
-            <View style={styles.checkmark}>
-              <Text style={{ color: '#FFFFFF', fontSize: 18 }}>✓</Text>
+            <View style={[
+              styles.feedbackIcon,
+              { backgroundColor: isFirstTry ? colors.success.main : colors.error.main }
+            ]}>
+              <Text style={{ color: '#FFFFFF', fontSize: 18 }}>
+                {isFirstTry ? '✓' : '✗'}
+              </Text>
             </View>
-            <Text variant="titleMedium" style={{ color: colors.success.dark }}>
-              Correct!
+            <Text 
+              variant="titleMedium" 
+              style={{ color: isFirstTry ? colors.success.dark : colors.error.dark }}
+            >
+              {isFirstTry ? 'Correct!' : 'Incorrect'}
             </Text>
           </View>
           <Text variant="bodyMedium" color="secondary">
-            {currentChord.name}: {currentChord.notes.join(' - ')}
+            {isFirstTry 
+              ? `${currentChord.name}: ${currentChord.notes.join(' - ')}`
+              : `Correct answer: ${currentChord.notes.join(' - ')}`
+            }
           </Text>
         </Card>
       )}
@@ -332,21 +446,30 @@ export function ChordSpellingGame() {
           variant="primary"
           size="lg"
           fullWidth
-          onPress={generateNewChord}
+          onPress={handleNext}
         >
-          {isComplete ? 'Next Chord' : 'Skip'}
+          {isComplete 
+            ? (isTestMode && showProgress && showProgress.current === showProgress.total)
+              ? 'Finish'
+              : 'Next Chord'
+            : isTestMode 
+              ? 'Skip (Mark Incorrect)' 
+              : 'Skip'
+          }
         </Button>
       </View>
 
-      {/* Settings Sheet */}
-      <GameSettingsSheet
-        visible={showSettings}
-        onClose={() => setShowSettings(false)}
-        settings={settings.chordGame}
-        onSettingsChange={(updates) => {
-          updateChordSettings(updates);
-        }}
-      />
+      {/* Settings Sheet - only in practice mode when no external handler */}
+      {!isTestMode && !onSettingsPress && (
+        <GameSettingsSheet
+          visible={showSettings}
+          onClose={() => setShowSettings(false)}
+          settings={settings.chordGame}
+          onSettingsChange={(updates) => {
+            updateChordSettings(updates);
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -355,6 +478,19 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: spacing[4],
+  },
+  progressContainer: {
+    marginBottom: spacing[2],
+  },
+  progressBar: {
+    height: 4,
+    borderRadius: 2,
+    marginTop: spacing[2],
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 2,
   },
   header: {
     flexDirection: 'row',
@@ -401,7 +537,6 @@ const styles = StyleSheet.create({
   },
   feedbackCard: {
     marginVertical: spacing[3],
-    backgroundColor: colors.success.light,
   },
   feedbackHeader: {
     flexDirection: 'row',
@@ -409,11 +544,10 @@ const styles = StyleSheet.create({
     gap: spacing[2],
     marginBottom: spacing[1],
   },
-  checkmark: {
+  feedbackIcon: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: colors.success.main,
     justifyContent: 'center',
     alignItems: 'center',
   },

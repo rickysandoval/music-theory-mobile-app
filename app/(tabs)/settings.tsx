@@ -48,18 +48,40 @@ export default function SettingsScreen() {
           Chord Spelling Game
         </Text>
         <Card variant="outlined">
+          <Text variant="labelMedium" color="secondary" style={styles.subsectionTitle}>
+            Root Notes
+          </Text>
           <Switch
-            label="Include Sharps & Flats"
-            description="Include chords with sharp or flat root notes (e.g., F#, Bb)"
-            value={settings.chordGame.includeSharpsFlatRoots}
+            label="Diatonic Notes"
+            description="Natural notes (C, D, E, F, G, A, B)"
+            value={settings.chordGame.includeDiatonicRoots}
             onValueChange={(value) => {
-              updateChordSettings({ includeSharpsFlatRoots: value });
+              updateChordSettings({ includeDiatonicRoots: value });
+            }}
+          />
+          <Switch
+            label="Accidentals"
+            description="Sharps & flats (F#, Bb, etc.)"
+            value={settings.chordGame.includeAccidentalRoots}
+            onValueChange={(value) => {
+              updateChordSettings({ includeAccidentalRoots: value });
             }}
           />
           <View style={styles.divider} />
+          <Text variant="labelMedium" color="secondary" style={styles.subsectionTitle}>
+            Chord Quality
+          </Text>
           <Switch
-            label="Include Minor Chords"
-            description="Include minor chords in addition to major"
+            label="Major Chords"
+            description="C, D, E, F, G, A, B"
+            value={settings.chordGame.includeMajorChords}
+            onValueChange={(value) => {
+              updateChordSettings({ includeMajorChords: value });
+            }}
+          />
+          <Switch
+            label="Minor Chords"
+            description="Am, Dm, Em, etc."
             value={settings.chordGame.includeMinorChords}
             onValueChange={(value) => {
               updateChordSettings({ includeMinorChords: value });
@@ -107,10 +129,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     marginBottom: spacing[3],
   },
+  subsectionTitle: {
+    marginBottom: spacing[2],
+  },
   divider: {
     height: 1,
     backgroundColor: '#E5E5E5',
-    marginVertical: spacing[2],
+    marginVertical: spacing[3],
   },
   aboutText: {
     marginTop: spacing[2],

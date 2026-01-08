@@ -46,7 +46,9 @@ export async function removeItem(key: StorageKey): Promise<void> {
  */
 export interface GameSettings {
   chordGame: {
-    includeSharpsFlatRoots: boolean;
+    includeDiatonicRoots: boolean;  // Natural notes (C, D, E, F, G, A, B)
+    includeAccidentalRoots: boolean; // Sharps & flats
+    includeMajorChords: boolean;
     includeMinorChords: boolean;
   };
   // Add more game settings as we add games
@@ -54,14 +56,39 @@ export interface GameSettings {
 
 const DEFAULT_GAME_SETTINGS: GameSettings = {
   chordGame: {
-    includeSharpsFlatRoots: true,
+    includeDiatonicRoots: true,
+    includeAccidentalRoots: true,
+    includeMajorChords: true,
     includeMinorChords: true,
   },
 };
 
 export async function getGameSettings(): Promise<GameSettings> {
   const settings = await getItem<GameSettings>('GAME_SETTINGS');
-  return settings ?? DEFAULT_GAME_SETTINGS;
+  
+  if (!settings) {
+    return DEFAULT_GAME_SETTINGS;
+  }
+  
+  // Migrate old settings format to new format
+  const chordGame = settings.chordGame as any;
+  if (chordGame.includeDiatonicRoots === undefined) {
+    // Old format had: includeSharpsFlatRoots, includeMinorChords
+    // Convert to new format
+    const migratedSettings: GameSettings = {
+      chordGame: {
+        includeDiatonicRoots: true, // Always include diatonic by default
+        includeAccidentalRoots: chordGame.includeSharpsFlatRoots ?? true,
+        includeMajorChords: true, // Old format didn't have this, default to true
+        includeMinorChords: chordGame.includeMinorChords ?? true,
+      },
+    };
+    // Save migrated settings
+    await saveGameSettings(migratedSettings);
+    return migratedSettings;
+  }
+  
+  return settings;
 }
 
 export async function saveGameSettings(settings: GameSettings): Promise<void> {

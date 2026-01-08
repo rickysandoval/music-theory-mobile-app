@@ -10,7 +10,9 @@ export interface Chord {
 }
 
 export interface ChordGameSettings {
-  includeSharpsFlatRoots: boolean;
+  includeDiatonicRoots: boolean;  // Natural notes (C, D, E, F, G, A, B)
+  includeAccidentalRoots: boolean; // Sharps & flats
+  includeMajorChords: boolean;
   includeMinorChords: boolean;
 }
 
@@ -25,3 +27,23 @@ export interface FretPosition {
 }
 
 export type ChordQuality = 'major' | 'minor' | 'diminished' | 'augmented';
+
+// Game mode types
+export type GameMode = 'practice' | 'test';
+export type InputMode = 'piano' | 'flashcard';
+
+// Test state tracking
+export interface TestChordResult {
+  chord: Chord;
+  wasCorrect: boolean;
+  attempts: number;
+}
+
+export interface TestState {
+  mode: 'in-progress' | 'reviewing-missed' | 'completed';
+  allChords: Chord[];
+  currentIndex: number;
+  results: TestChordResult[];
+  missedChords: Chord[]; // Chords to review after initial test
+  reviewIndex: number;   // Current position in missed chords review
+}
