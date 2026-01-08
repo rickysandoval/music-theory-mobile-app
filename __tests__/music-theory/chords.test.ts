@@ -7,6 +7,7 @@ import {
   buildChordNotes,
   generateRandomChord,
   isNoteInChord,
+  isNoteCorrectAtPosition,
   checkChordAnswer,
   identifyChord,
 } from '../../src/lib/music-theory/chords';
@@ -172,16 +173,19 @@ describe('checkChordAnswer', () => {
     isMinor: false,
   };
 
-  it('should return true for correct answer', () => {
+  it('should return true for correct answer in correct order (Root, Third, Fifth)', () => {
     expect(checkChordAnswer(['C', 'E', 'G'], cMajor)).toBe(true);
   });
 
-  it('should return true regardless of order', () => {
-    expect(checkChordAnswer(['E', 'G', 'C'], cMajor)).toBe(true);
-    expect(checkChordAnswer(['G', 'C', 'E'], cMajor)).toBe(true);
+  it('should return false for correct notes in wrong order', () => {
+    // Fifth in third position, third in fifth position
+    expect(checkChordAnswer(['C', 'G', 'E'], cMajor)).toBe(false);
+    // These would be inversions, but we want root position only
+    expect(checkChordAnswer(['E', 'G', 'C'], cMajor)).toBe(false);
+    expect(checkChordAnswer(['G', 'C', 'E'], cMajor)).toBe(false);
   });
 
-  it('should return true for enharmonic equivalents', () => {
+  it('should return true for enharmonic equivalents in correct positions', () => {
     const dbChord: Chord = {
       name: 'Db',
       notes: ['Db', 'F', 'Ab'],
@@ -189,8 +193,20 @@ describe('checkChordAnswer', () => {
       isMinor: false,
     };
 
-    // Using sharps instead of flats
+    // Using sharps instead of flats, but in correct order
     expect(checkChordAnswer(['C#', 'F', 'G#'], dbChord)).toBe(true);
+  });
+
+  it('should return false for enharmonic equivalents in wrong positions', () => {
+    const dbChord: Chord = {
+      name: 'Db',
+      notes: ['Db', 'F', 'Ab'],
+      root: 'Db',
+      isMinor: false,
+    };
+
+    // Wrong order even with enharmonics
+    expect(checkChordAnswer(['C#', 'G#', 'F'], dbChord)).toBe(false);
   });
 
   it('should return false for incomplete answer', () => {
@@ -204,9 +220,63 @@ describe('checkChordAnswer', () => {
   });
 
   it('should return false for duplicate correct notes', () => {
-    // Even if all notes are "correct", we need all three unique notes
     expect(checkChordAnswer(['C', 'C', 'C'], cMajor)).toBe(false);
     expect(checkChordAnswer(['C', 'E', 'E'], cMajor)).toBe(false);
+  });
+
+  it('should return false for correct third and fifth but wrong root', () => {
+    expect(checkChordAnswer(['D', 'E', 'G'], cMajor)).toBe(false);
+  });
+});
+
+describe('isNoteCorrectAtPosition', () => {
+  const aMinor: Chord = {
+    name: 'Am',
+    notes: ['A', 'C', 'E'],
+    root: 'A',
+    isMinor: true,
+  };
+
+  it('should return true for correct note at position 0 (root)', () => {
+    expect(isNoteCorrectAtPosition('A', 0, aMinor)).toBe(true);
+  });
+
+  it('should return true for correct note at position 1 (third)', () => {
+    expect(isNoteCorrectAtPosition('C', 1, aMinor)).toBe(true);
+  });
+
+  it('should return true for correct note at position 2 (fifth)', () => {
+    expect(isNoteCorrectAtPosition('E', 2, aMinor)).toBe(true);
+  });
+
+  it('should return false for wrong note at position', () => {
+    // E is in the chord, but not at position 1 (third)
+    expect(isNoteCorrectAtPosition('E', 1, aMinor)).toBe(false);
+    // C is in the chord, but not at position 2 (fifth)
+    expect(isNoteCorrectAtPosition('C', 2, aMinor)).toBe(false);
+  });
+
+  it('should accept enharmonic equivalents at correct position', () => {
+    const fSharpMinor: Chord = {
+      name: 'F#m',
+      notes: ['F#', 'A', 'C#'],
+      root: 'F#',
+      isMinor: true,
+    };
+
+    // Gb is enharmonic to F# at position 0
+    expect(isNoteCorrectAtPosition('Gb', 0, fSharpMinor)).toBe(true);
+    // Db is enharmonic to C# at position 2
+    expect(isNoteCorrectAtPosition('Db', 2, fSharpMinor)).toBe(true);
+  });
+
+  it('should return false for empty note', () => {
+    expect(isNoteCorrectAtPosition('', 0, aMinor)).toBe(false);
+  });
+
+  it('should return false for invalid position', () => {
+    expect(isNoteCorrectAtPosition('A', -1, aMinor)).toBe(false);
+    expect(isNoteCorrectAtPosition('A', 3, aMinor)).toBe(false);
   });
 });
 

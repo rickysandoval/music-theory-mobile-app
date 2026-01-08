@@ -118,25 +118,29 @@ export function isNoteInChord(note: string, chord: Chord): boolean {
 }
 
 /**
- * Checks if user's notes match the chord notes (order-independent, enharmonic-aware)
- * @returns true if all 3 notes match the chord
+ * Checks if a note is in the correct position within the chord
+ * @param note - The note to check
+ * @param position - The position (0 = root, 1 = third, 2 = fifth)
+ * @param chord - The chord to check against
+ * @returns true if the note matches the expected note at that position
+ */
+export function isNoteCorrectAtPosition(note: string, position: number, chord: Chord): boolean {
+  if (!note || position < 0 || position >= chord.notes.length) return false;
+  return areEnharmonic(note, chord.notes[position]);
+}
+
+/**
+ * Checks if user's notes match the chord notes in the correct order (Root, Third, Fifth)
+ * @returns true if all 3 notes match the chord in the correct positions
  */
 export function checkChordAnswer(userNotes: string[], chord: Chord): boolean {
-  // Filter out empty notes
-  const filledNotes = userNotes.filter(n => n !== '');
+  // Must have exactly 3 notes (no empty slots)
+  if (userNotes.length !== 3) return false;
+  if (userNotes.some(n => n === '')) return false;
   
-  // Must have exactly 3 notes
-  if (filledNotes.length !== 3) return false;
-  
-  // Every user note must be in the chord
-  const allNotesInChord = filledNotes.every(note => isNoteInChord(note, chord));
-  
-  // Every chord note must be represented by a user note
-  const allChordNotesCovered = chord.notes.every(chordNote => 
-    filledNotes.some(userNote => areEnharmonic(userNote, chordNote))
-  );
-  
-  return allNotesInChord && allChordNotesCovered;
+  // Check each position: Root (0), Third (1), Fifth (2)
+  // Each user note must match the corresponding chord note (considering enharmonics)
+  return userNotes.every((note, index) => isNoteCorrectAtPosition(note, index, chord));
 }
 
 /**

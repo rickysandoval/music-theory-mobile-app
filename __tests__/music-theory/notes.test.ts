@@ -16,6 +16,8 @@ import {
   isNaturalNote,
   getNextNoteLetter,
   getNoteLetterAtInterval,
+  getEnharmonicForLetter,
+  getCorrectSpellingForChordPosition,
 } from '../../src/lib/music-theory/notes';
 
 describe('normalizeNote', () => {
@@ -257,5 +259,122 @@ describe('getNoteLetterAtInterval', () => {
 
   it('should wrap around correctly', () => {
     expect(getNoteLetterAtInterval('G', 4)).toBe('D');
+  });
+});
+
+describe('getEnharmonicForLetter', () => {
+  it('should return same note if already starts with target letter', () => {
+    expect(getEnharmonicForLetter('C', 'C')).toBe('C');
+    expect(getEnharmonicForLetter('F#', 'F')).toBe('F#');
+    expect(getEnharmonicForLetter('Bb', 'B')).toBe('Bb');
+  });
+
+  it('should convert sharp to flat equivalent', () => {
+    expect(getEnharmonicForLetter('A#', 'B')).toBe('Bb');
+    expect(getEnharmonicForLetter('C#', 'D')).toBe('Db');
+    expect(getEnharmonicForLetter('D#', 'E')).toBe('Eb');
+    expect(getEnharmonicForLetter('F#', 'G')).toBe('Gb');
+    expect(getEnharmonicForLetter('G#', 'A')).toBe('Ab');
+  });
+
+  it('should convert flat to sharp equivalent', () => {
+    expect(getEnharmonicForLetter('Bb', 'A')).toBe('A#');
+    expect(getEnharmonicForLetter('Db', 'C')).toBe('C#');
+    expect(getEnharmonicForLetter('Eb', 'D')).toBe('D#');
+    expect(getEnharmonicForLetter('Gb', 'F')).toBe('F#');
+    expect(getEnharmonicForLetter('Ab', 'G')).toBe('G#');
+  });
+
+  it('should return null if no enharmonic exists for target letter', () => {
+    // C has no enharmonic starting with D
+    expect(getEnharmonicForLetter('C', 'D')).toBe(null);
+    // E natural has no common enharmonic starting with D
+    expect(getEnharmonicForLetter('E', 'D')).toBe(null);
+  });
+
+  it('should handle case insensitivity', () => {
+    expect(getEnharmonicForLetter('a#', 'b')).toBe('Bb');
+    expect(getEnharmonicForLetter('BB', 'A')).toBe('A#');
+  });
+});
+
+describe('getCorrectSpellingForChordPosition', () => {
+  describe('G minor chord (G - Bb - D)', () => {
+    it('should spell third as Bb not A#', () => {
+      // User presses A#/Bb key for third position
+      expect(getCorrectSpellingForChordPosition('A#', 'G', 1)).toBe('Bb');
+      expect(getCorrectSpellingForChordPosition('Bb', 'G', 1)).toBe('Bb');
+    });
+
+    it('should spell fifth correctly', () => {
+      expect(getCorrectSpellingForChordPosition('D', 'G', 2)).toBe('D');
+    });
+  });
+
+  describe('F# minor chord (F# - A - C#)', () => {
+    it('should spell root as F# not Gb', () => {
+      expect(getCorrectSpellingForChordPosition('Gb', 'F#', 0)).toBe('F#');
+      expect(getCorrectSpellingForChordPosition('F#', 'F#', 0)).toBe('F#');
+    });
+
+    it('should spell third as A', () => {
+      expect(getCorrectSpellingForChordPosition('A', 'F#', 1)).toBe('A');
+    });
+
+    it('should spell fifth as C# not Db', () => {
+      expect(getCorrectSpellingForChordPosition('Db', 'F#', 2)).toBe('C#');
+      expect(getCorrectSpellingForChordPosition('C#', 'F#', 2)).toBe('C#');
+    });
+  });
+
+  describe('Eb major chord (Eb - G - Bb)', () => {
+    it('should spell root as Eb', () => {
+      expect(getCorrectSpellingForChordPosition('D#', 'Eb', 0)).toBe('Eb');
+      expect(getCorrectSpellingForChordPosition('Eb', 'Eb', 0)).toBe('Eb');
+    });
+
+    it('should spell third as G', () => {
+      expect(getCorrectSpellingForChordPosition('G', 'Eb', 1)).toBe('G');
+    });
+
+    it('should spell fifth as Bb not A#', () => {
+      expect(getCorrectSpellingForChordPosition('A#', 'Eb', 2)).toBe('Bb');
+      expect(getCorrectSpellingForChordPosition('Bb', 'Eb', 2)).toBe('Bb');
+    });
+  });
+
+  describe('A major chord (A - C# - E)', () => {
+    it('should spell third as C# not Db', () => {
+      expect(getCorrectSpellingForChordPosition('Db', 'A', 1)).toBe('C#');
+      expect(getCorrectSpellingForChordPosition('C#', 'A', 1)).toBe('C#');
+    });
+  });
+
+  describe('Bb major chord (Bb - D - F)', () => {
+    it('should spell root as Bb not A#', () => {
+      expect(getCorrectSpellingForChordPosition('A#', 'Bb', 0)).toBe('Bb');
+    });
+
+    it('should spell third as D', () => {
+      expect(getCorrectSpellingForChordPosition('D', 'Bb', 1)).toBe('D');
+    });
+
+    it('should spell fifth as F', () => {
+      expect(getCorrectSpellingForChordPosition('F', 'Bb', 2)).toBe('F');
+    });
+  });
+
+  describe('edge cases', () => {
+    it('should convert C to B# when B letter is needed (enharmonic exists)', () => {
+      // C is enharmonic to B# - this would be used if third of G# needs to be B-something
+      // Third of G is B (2 letters: G → A → B), so C played for third converts to B#
+      expect(getCorrectSpellingForChordPosition('C', 'G', 1)).toBe('B#');
+    });
+
+    it('should return original when no conversion possible', () => {
+      // E has no common enharmonic starting with G
+      // This is an invalid chord tone anyway, so fallback is fine
+      expect(getCorrectSpellingForChordPosition('E', 'C', 2)).toBe('E');
+    });
   });
 });

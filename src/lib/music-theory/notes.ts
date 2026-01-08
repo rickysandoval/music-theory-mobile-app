@@ -3,7 +3,7 @@
  * Pure functions for working with musical notes
  */
 
-import { ENHARMONIC_MAP, NOTES, NOTES_WITH_FLATS, STANDARD_TUNING, NATURAL_NOTES, WHITE_KEY_BEFORE_BLACK } from './constants';
+import { ENHARMONIC_MAP, NATURAL_NOTES, NOTES, NOTES_WITH_FLATS, STANDARD_TUNING, WHITE_KEY_BEFORE_BLACK } from './constants';
 
 /**
  * Normalizes a note name to uppercase with proper accidentals
@@ -207,4 +207,61 @@ export function getKeyboardStartKey(rootNote: string): string {
   }
   
   return 'C';
+}
+
+/**
+ * Gets the enharmonic spelling of a note that starts with the target letter.
+ * Used for proper chord spelling (e.g., Gm third should be Bb, not A#)
+ * @example getEnharmonicForLetter('A#', 'B') => 'Bb'
+ * @example getEnharmonicForLetter('Db', 'C') => 'C#'
+ * @example getEnharmonicForLetter('C', 'C') => 'C'
+ */
+export function getEnharmonicForLetter(note: string, targetLetter: string): string | null {
+  const normalized = normalizeNote(note);
+  const target = targetLetter.toUpperCase();
+  
+  // If already starts with target letter, return as-is
+  if (normalized.charAt(0) === target) {
+    return normalized;
+  }
+  
+  // Get all enharmonic equivalents and find one starting with target letter
+  const enharmonics = getEnharmonics(normalized);
+  const match = enharmonics.find(n => n.charAt(0) === target);
+  
+  return match || null;
+}
+
+/**
+ * Converts a played note to the correct enharmonic spelling for a chord position.
+ * Position 0 = root, 1 = third (2 letters from root), 2 = fifth (4 letters from root)
+ * @example getCorrectSpellingForChordPosition('A#', 'G', 1) => 'Bb' (third of Gm)
+ * @example getCorrectSpellingForChordPosition('C#', 'A', 1) => 'C#' (third of A major)
+ */
+export function getCorrectSpellingForChordPosition(
+  playedNote: string, 
+  chordRoot: string, 
+  position: number
+): string {
+  const normalized = normalizeNote(playedNote);
+  
+  // Root position - should match root letter
+  if (position === 0) {
+    const rootLetter = chordRoot.charAt(0).toUpperCase();
+    return getEnharmonicForLetter(normalized, rootLetter) || normalized;
+  }
+  
+  // Third position - 2 letters from root (e.g., G → B)
+  if (position === 1) {
+    const thirdLetter = getNoteLetterAtInterval(chordRoot, 2);
+    return getEnharmonicForLetter(normalized, thirdLetter) || normalized;
+  }
+  
+  // Fifth position - 4 letters from root (e.g., G → D)
+  if (position === 2) {
+    const fifthLetter = getNoteLetterAtInterval(chordRoot, 4);
+    return getEnharmonicForLetter(normalized, fifthLetter) || normalized;
+  }
+  
+  return normalized;
 }

@@ -25,6 +25,8 @@ export {
   getNextNoteLetter,
   getNoteLetterAtInterval,
   getKeyboardStartKey,
+  getEnharmonicForLetter,
+  getCorrectSpellingForChordPosition,
 } from './notes';
 
 // Chord utilities
@@ -33,6 +35,7 @@ export {
   buildChordNotes,
   generateRandomChord,
   isNoteInChord,
+  isNoteCorrectAtPosition,
   checkChordAnswer,
   identifyChord,
 } from './chords';

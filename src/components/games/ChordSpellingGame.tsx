@@ -18,9 +18,10 @@ import {
   Chord, 
   generateRandomChord, 
   checkChordAnswer, 
-  isNoteInChord,
+  isNoteCorrectAtPosition,
   areEnharmonic,
   getKeyboardStartKey,
+  getCorrectSpellingForChordPosition,
 } from '@/src/lib/music-theory';
 import { playNote, playChord } from '@/src/lib/audio';
 import { useSettings, useProgress } from '@/src/stores';
@@ -39,13 +40,15 @@ export function ChordSpellingGame() {
   const [hasChecked, setHasChecked] = useState(false); // Track if we've checked answers
 
   // Compute which notes are correct (only after all slots filled)
+  // Now checks position: slot 1 must be third, slot 2 must be fifth
   const noteCorrectness = useMemo(() => {
     if (!currentChord || !hasChecked) return [null, null, null];
     
     return userNotes.map((note, index) => {
       if (index === 0) return null; // Root is always correct, don't show indicator
       if (!note) return null;
-      return isNoteInChord(note, currentChord);
+      // Check if note is correct for THIS position (not just in chord)
+      return isNoteCorrectAtPosition(note, index, currentChord);
     });
   }, [currentChord, userNotes, hasChecked]);
 
@@ -157,9 +160,12 @@ export function ChordSpellingGame() {
       }
     }
     
+    // Convert to correct enharmonic spelling for this position
+    const correctSpelling = getCorrectSpellingForChordPosition(note, rootNote, targetIndex);
+    
     // Update the note
     const newNotes = [...userNotes];
-    newNotes[targetIndex] = note;
+    newNotes[targetIndex] = correctSpelling;
     setUserNotes(newNotes);
     
     // Check if all slots are now filled
@@ -186,10 +192,10 @@ export function ChordSpellingGame() {
       } else {
         // Not all correct - we need to find the first incorrect and focus it
         // This will happen on next render when noteCorrectness updates
-        // For now, find it manually
+        // For now, find it manually (checking position-correctness)
         setTimeout(() => {
           for (let i = 1; i < newNotes.length; i++) {
-            if (!isNoteInChord(newNotes[i], currentChord)) {
+            if (!isNoteCorrectAtPosition(newNotes[i], i, currentChord)) {
               setSelectedIndex(i);
               break;
             }
