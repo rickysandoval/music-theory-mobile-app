@@ -19,3 +19,23 @@ export {
     buildChordNotes, checkChordAnswer, generateAllChords, generateRandomChord, identifyChord, isNoteCorrectAtPosition, isNoteInChord, parseChordName
 } from './chords';
 
+// Game feedback utilities
+export {
+    determineFeedback, getFeedbackSubtitle
+} from './gameFeedback';
+export type { FeedbackInput, FeedbackState, FeedbackType } from './gameFeedback';
+
+// Chord test state machine (pure functions)
+export {
+    calculateScore,
+    createTestState,
+    getCurrentChord,
+    getMissedChords,
+    getProgress,
+    markReviewCorrect,
+    recordTestResult,
+    restartTest,
+    shuffleArray,
+    startReviewingMissed
+} from './chordTestStateMachine';
+

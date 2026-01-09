@@ -52,7 +52,7 @@ export interface GameSettings {
     includeMinorChords: boolean;
   };
   fretboardGame: {
-    gameMode: 'identify' | 'find';  // identify = name the note, find = tap the position
+    gameMode: 'identify' | 'find' | 'listen';  // identify = name the note, find = tap the position, listen = play on guitar
     includeNaturalNotes: boolean;
     includeAccidentals: boolean;
     strings: boolean[];             // [E, A, D, G, B, E] low to high
@@ -60,6 +60,8 @@ export interface GameSettings {
     maxFret: number;
     useFlats: boolean;
     showOpenStringNotes: boolean;   // Show note names at the nut
+    autoAdvanceOnCorrect: boolean;  // Auto-advance in listen mode when correct
+    listenSensitivity: 'low' | 'medium' | 'high';  // Microphone sensitivity for listen mode
   };
 }
 
@@ -79,6 +81,8 @@ const DEFAULT_GAME_SETTINGS: GameSettings = {
     maxFret: 5,
     useFlats: false,
     showOpenStringNotes: true,
+    autoAdvanceOnCorrect: true, // Auto-advance in listen mode
+    listenSensitivity: 'medium', // Microphone sensitivity
   },
 };
 
@@ -112,11 +116,24 @@ export async function getGameSettings(): Promise<GameSettings> {
   } else {
     // Migrate new fretboard settings fields
     const fretboardGame = settings.fretboardGame as any;
+    let fretboardNeedsMigration = false;
+    let migratedFretboard = { ...fretboardGame };
+    
     if (fretboardGame.showOpenStringNotes === undefined) {
-      migratedSettings.fretboardGame = {
-        ...fretboardGame,
-        showOpenStringNotes: DEFAULT_GAME_SETTINGS.fretboardGame.showOpenStringNotes,
-      };
+      migratedFretboard.showOpenStringNotes = DEFAULT_GAME_SETTINGS.fretboardGame.showOpenStringNotes;
+      fretboardNeedsMigration = true;
+    }
+    if (fretboardGame.autoAdvanceOnCorrect === undefined) {
+      migratedFretboard.autoAdvanceOnCorrect = DEFAULT_GAME_SETTINGS.fretboardGame.autoAdvanceOnCorrect;
+      fretboardNeedsMigration = true;
+    }
+    if (fretboardGame.listenSensitivity === undefined) {
+      migratedFretboard.listenSensitivity = DEFAULT_GAME_SETTINGS.fretboardGame.listenSensitivity;
+      fretboardNeedsMigration = true;
+    }
+    
+    if (fretboardNeedsMigration) {
+      migratedSettings.fretboardGame = migratedFretboard;
       needsSave = true;
     }
   }
