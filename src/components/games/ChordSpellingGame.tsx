@@ -8,8 +8,10 @@ import {
     areEnharmonic,
     checkChordAnswer,
     Chord,
+    determineFeedback,
     generateRandomChord,
     getCorrectSpellingForChordPosition,
+    getFeedbackSubtitle,
     getKeyboardStartKey,
     isNoteCorrectAtPosition,
 } from '@/src/lib/music-theory';
@@ -394,41 +396,49 @@ export function ChordSpellingGame({
       )}
 
       {/* Feedback - success or failure */}
-      {showFeedback && isComplete && (
-        <Card 
-          variant="outlined" 
-          style={[
-            styles.feedbackCard, 
-            { 
-              borderColor: isFirstTry ? colors.success.main : colors.error.main,
-              backgroundColor: isFirstTry ? colors.success.light : colors.error.light,
-            }
-          ]}
-        >
-          <View style={styles.feedbackHeader}>
-            <View style={[
-              styles.feedbackIcon,
-              { backgroundColor: isFirstTry ? colors.success.main : colors.error.main }
-            ]}>
-              <Text style={{ color: '#FFFFFF', fontSize: 18 }}>
-                {isFirstTry ? '✓' : '✗'}
+      {showFeedback && isComplete && (() => {
+        // Use centralized feedback logic (see gameFeedback.ts for scenarios)
+        const feedback = determineFeedback({ isTestMode, isFirstTry, isComplete });
+        const feedbackColor = feedback.color === 'success' ? colors.success : colors.error;
+        const subtitleText = getFeedbackSubtitle(
+          feedback.type, 
+          currentChord.name, 
+          currentChord.notes
+        );
+        
+        return (
+          <Card 
+            variant="outlined" 
+            style={[
+              styles.feedbackCard, 
+              { 
+                borderColor: feedbackColor.main,
+                backgroundColor: feedbackColor.light,
+              }
+            ]}
+          >
+            <View style={styles.feedbackHeader}>
+              <View style={[
+                styles.feedbackIcon,
+                { backgroundColor: feedbackColor.main }
+              ]}>
+                <Text style={{ color: '#FFFFFF', fontSize: 18 }}>
+                  {feedback.icon}
+                </Text>
+              </View>
+              <Text 
+                variant="titleMedium" 
+                style={{ color: feedbackColor.dark }}
+              >
+                {feedback.title}
               </Text>
             </View>
-            <Text 
-              variant="titleMedium" 
-              style={{ color: isFirstTry ? colors.success.dark : colors.error.dark }}
-            >
-              {isFirstTry ? 'Correct!' : 'Incorrect'}
+            <Text variant="bodyMedium" color="secondary">
+              {subtitleText}
             </Text>
-          </View>
-          <Text variant="bodyMedium" color="secondary">
-            {isFirstTry 
-              ? `${currentChord.name}: ${currentChord.notes.join(' - ')}`
-              : `Correct answer: ${currentChord.notes.join(' - ')}`
-            }
-          </Text>
-        </Card>
-      )}
+          </Card>
+        );
+      })()}
 
       {/* Piano keyboard */}
       <View style={styles.keyboardContainer}>

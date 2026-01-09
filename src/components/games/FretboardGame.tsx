@@ -1,12 +1,13 @@
 /**
  * Fretboard Notes Game
- * Two modes: 
+ * Three modes: 
  * - Identify: Show position, user names the note
  * - Find: Show note name, user taps the position
+ * - Listen: Show note name, user plays it on real guitar
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, StyleSheet, Pressable, Vibration } from 'react-native';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { View, StyleSheet, Pressable, Vibration, Platform } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Text } from '../ui/Text';
 import { Button } from '../ui/Button';
@@ -15,7 +16,7 @@ import { useTheme } from '../ui/ThemeContext';
 import { Fretboard } from './Fretboard';
 import { colors, spacing, borderRadius } from '@/src/theme';
 import { getNoteAtFret, getNoteIndex, isNaturalNote, areEnharmonic } from '@/src/lib/music-theory';
-import { playNote } from '@/src/lib/audio';
+import { playNote, pitchDetector, PitchResult, PitchDetector } from '@/src/lib/audio';
 import { GameSettings } from '@/src/stores';
 
 // Note buttons for "identify" mode - natural notes on first row, accidentals on second
@@ -40,12 +41,36 @@ export function FretboardGame({ onSettingsPress, settings: gameSettings }: Fretb
   const { theme, isDark } = useTheme();
   
   const [currentPosition, setCurrentPosition] = useState<GamePosition | null>(null);
-  const [currentNote, setCurrentNote] = useState<string | null>(null); // For "find" mode
+  const [currentNote, setCurrentNote] = useState<string | null>(null); // For "find" and "listen" modes
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [streak, setStreak] = useState(0);
+  
+  // Listen mode state
+  const [isListening, setIsListening] = useState(false);
+  const [detectedNote, setDetectedNote] = useState<string | null>(null);
+  const [detectedFrequency, setDetectedFrequency] = useState<number | null>(null);
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const listenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const autoAdvanceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isAutoAdvancing = useRef(false);
+  
+  // Refs to hold latest values for the pitch callback (avoids stale closures)
+  const currentNoteRef = useRef<string | null>(null);
+  const autoAdvanceSettingRef = useRef(false);
 
   const isIdentifyMode = gameSettings?.gameMode === 'identify';
+  const isListenMode = gameSettings?.gameMode === 'listen';
+  const isFindMode = gameSettings?.gameMode === 'find';
+
+  // Keep refs in sync with state (for use in pitch callback)
+  useEffect(() => {
+    currentNoteRef.current = currentNote;
+  }, [currentNote]);
+  
+  useEffect(() => {
+    autoAdvanceSettingRef.current = gameSettings?.autoAdvanceOnCorrect ?? false;
+  }, [gameSettings?.autoAdvanceOnCorrect]);
 
   // Get available notes based on settings
   const availableNotes = useMemo(() => {
@@ -103,9 +128,26 @@ export function FretboardGame({ onSettingsPress, settings: gameSettings }: Fretb
   }, [availableNotes]);
 
   // Start a new round
-  const startNewRound = useCallback(() => {
+  const startNewRound = useCallback((keepListening = false) => {
     setSelectedAnswer(null);
     setIsCorrect(null);
+    setDetectedNote(null);
+    setDetectedFrequency(null);
+    
+    // Only stop listening if not keeping it active
+    if (!keepListening) {
+      setIsListening(false);
+    }
+    
+    // Clear any pending timeouts
+    if (listenTimeoutRef.current) {
+      clearTimeout(listenTimeoutRef.current);
+      listenTimeoutRef.current = null;
+    }
+    if (autoAdvanceTimeoutRef.current) {
+      clearTimeout(autoAdvanceTimeoutRef.current);
+      autoAdvanceTimeoutRef.current = null;
+    }
     
     if (isIdentifyMode) {
       // For identify mode, avoid same position
@@ -124,11 +166,120 @@ export function FretboardGame({ onSettingsPress, settings: gameSettings }: Fretb
       });
       setCurrentNote(null);
     } else {
-      // For find mode, pass the previous note to avoid repeats
+      // For find and listen modes, pass the previous note to avoid repeats
       setCurrentNote(prev => generateRandomNote(prev));
       setCurrentPosition(null);
     }
+    
+    isAutoAdvancing.current = false;
   }, [isIdentifyMode, generateRandomPosition, generateRandomNote]);
+
+  // Handle pitch detection callback
+  // Uses refs to always access latest values (avoids stale closure issues)
+  const handlePitchDetected = useCallback((result: PitchResult) => {
+    const targetNote = currentNoteRef.current;
+    const autoAdvance = autoAdvanceSettingRef.current;
+    
+    console.log('[FretboardGame] handlePitchDetected:', result.note, 'target:', targetNote, 'isAutoAdvancing:', isAutoAdvancing.current);
+    
+    if (result.note && result.frequency && !isAutoAdvancing.current) {
+      setDetectedNote(result.note);
+      setDetectedFrequency(result.frequency);
+      
+      // Check if the detected note matches the target
+      if (targetNote && areEnharmonic(result.note, targetNote)) {
+        console.log('[FretboardGame] CORRECT! Setting isCorrect=true');
+        setIsCorrect(true);
+        setStreak(s => s + 1);
+        Vibration.vibrate(100);
+        
+        if (autoAdvance) {
+          // Mark that we're auto-advancing to ignore further detections
+          isAutoAdvancing.current = true;
+          console.log('[FretboardGame] Auto-advance enabled, will advance in 1s');
+          
+          // Don't stop listening - just wait and advance
+          autoAdvanceTimeoutRef.current = setTimeout(() => {
+            console.log('[FretboardGame] Auto-advancing to next note...');
+            startNewRound(true); // Keep listening active
+          }, 1000); // 1 second delay to show feedback
+        } else {
+          // Stop listening if not auto-advancing
+          setIsListening(false);
+          pitchDetector.stopListening();
+        }
+      }
+    }
+  }, [startNewRound]); // Only depends on startNewRound now, uses refs for other values
+
+  // Start listening for guitar input
+  const startListening = useCallback(async () => {
+    console.log('[FretboardGame] startListening called, current isListening:', isListening);
+    if (isListening) return;
+    
+    // Check/request permission
+    console.log('[FretboardGame] Requesting permissions...');
+    const granted = await pitchDetector.requestPermissions();
+    console.log('[FretboardGame] Permission granted:', granted);
+    setHasPermission(granted);
+    
+    if (!granted) {
+      console.log('[FretboardGame] Permission not granted, aborting');
+      return;
+    }
+    
+    setIsListening(true);
+    setDetectedNote(null);
+    setDetectedFrequency(null);
+    
+    // Start the pitch detector
+    const sensitivity = gameSettings?.listenSensitivity ?? 'medium';
+    console.log('==============================================');
+    console.log('[FretboardGame] Starting pitch detector with:');
+    console.log('[FretboardGame]   sensitivity:', sensitivity);
+    console.log('[FretboardGame]   useFlats:', gameSettings?.useFlats ?? false);
+    console.log('==============================================');
+    const started = await pitchDetector.startListening(
+      handlePitchDetected,
+      gameSettings?.useFlats ?? false,
+      sensitivity
+    );
+    console.log('[FretboardGame] Pitch detector started:', started);
+    
+    if (!started) {
+      console.log('[FretboardGame] Failed to start, resetting isListening');
+      setIsListening(false);
+    }
+  }, [isListening, handlePitchDetected, gameSettings?.useFlats]);
+
+  // Stop listening
+  const stopListening = useCallback(async () => {
+    console.log('[FretboardGame] stopListening called');
+    setIsListening(false);
+    await pitchDetector.stopListening();
+    console.log('[FretboardGame] Stopped listening, state updated');
+  }, []);
+
+  // Give up on listen mode
+  const handleGiveUp = useCallback(() => {
+    setIsCorrect(false);
+    setStreak(0);
+    Vibration.vibrate([0, 100, 50, 100]);
+    stopListening();
+  }, [stopListening]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      pitchDetector.stopListening();
+      if (listenTimeoutRef.current) {
+        clearTimeout(listenTimeoutRef.current);
+      }
+      if (autoAdvanceTimeoutRef.current) {
+        clearTimeout(autoAdvanceTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Initialize game
   useEffect(() => {
@@ -141,6 +292,40 @@ export function FretboardGame({ onSettingsPress, settings: gameSettings }: Fretb
   useEffect(() => {
     startNewRound();
   }, [gameSettings?.gameMode]);
+
+  // Auto-start listening when entering Listen mode on Android
+  useEffect(() => {
+    if (isListenMode && Platform.OS === 'android' && !isListening && currentNote && isCorrect === null) {
+      // Small delay to let the UI render first
+      const timer = setTimeout(() => {
+        startListening();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isListenMode, currentNote, isCorrect]);
+
+  // Stop listening when leaving Listen mode
+  useEffect(() => {
+    if (!isListenMode && isListening) {
+      stopListening();
+    }
+  }, [isListenMode, isListening, stopListening]);
+
+  // Restart listening when sensitivity changes (to apply new threshold)
+  useEffect(() => {
+    if (isListenMode && isListening && Platform.OS === 'android') {
+      const restartWithNewSensitivity = async () => {
+        console.log('[FretboardGame] Sensitivity changed, restarting listener...');
+        await pitchDetector.stopListening();
+        setIsListening(false);
+        // Small delay before restarting
+        setTimeout(() => {
+          startListening();
+        }, 300);
+      };
+      restartWithNewSensitivity();
+    }
+  }, [gameSettings?.listenSensitivity]);
 
   // Handle note button press (identify mode)
   const handleNoteGuess = useCallback((note: string) => {
@@ -252,6 +437,29 @@ export function FretboardGame({ onSettingsPress, settings: gameSettings }: Fretb
               </Text>
             </View>
           </>
+        ) : isListenMode ? (
+          <>
+            <Text variant="labelMedium" color="secondary">
+              Play this note on your guitar:
+            </Text>
+            <View style={styles.noteDisplay}>
+              <Text style={[styles.targetNote, { color: colors.primary[500] }]}>
+                {currentNote || '?'}
+              </Text>
+              <Pressable onPress={handlePlayNote} style={styles.playButton}>
+                <FontAwesome name="volume-up" size={20} color={colors.primary[500]} />
+              </Pressable>
+            </View>
+            {/* Detected note display */}
+            {detectedNote && (
+              <View style={styles.detectedNoteContainer}>
+                <Text variant="bodySmall" color="muted">
+                  Detected: <Text style={{ color: areEnharmonic(detectedNote, currentNote || '') ? colors.success.main : colors.error.main, fontWeight: '600' }}>{detectedNote}</Text>
+                  {detectedFrequency && ` (${detectedFrequency.toFixed(1)} Hz)`}
+                </Text>
+              </View>
+            )}
+          </>
         ) : (
           <>
             <Text variant="labelMedium" color="secondary">
@@ -275,9 +483,9 @@ export function FretboardGame({ onSettingsPress, settings: gameSettings }: Fretb
           minFret={gameSettings.minFret}
           maxFret={gameSettings.maxFret}
           highlightedPosition={currentPosition}
-          highlightedNote={!isIdentifyMode && isCorrect !== null ? currentNote : undefined}
-          onFretPress={!isIdentifyMode ? handleFretPress : undefined}
-          onStringLabelPress={!isIdentifyMode ? (stringIndex) => handleFretPress(stringIndex, 0, getNoteAtFret(stringIndex, 0, gameSettings.useFlats)) : undefined}
+          highlightedNote={(isFindMode || isListenMode) && isCorrect !== null ? currentNote : undefined}
+          onFretPress={isFindMode ? handleFretPress : undefined}
+          onStringLabelPress={isFindMode ? (stringIndex) => handleFretPress(stringIndex, 0, getNoteAtFret(stringIndex, 0, gameSettings.useFlats)) : undefined}
           showOpenStringNotes={gameSettings.showOpenStringNotes ?? true}
           hideHighlightedNoteName={isIdentifyMode && isCorrect === null}
           useFlats={gameSettings.useFlats}
@@ -366,6 +574,81 @@ export function FretboardGame({ onSettingsPress, settings: gameSettings }: Fretb
             </View>
           )}
           </View>
+        </View>
+      )}
+
+      {/* Listen mode controls */}
+      {isListenMode && isCorrect === null && (
+        <View style={styles.listenControlsContainer}>
+          {hasPermission === false ? (
+            <Card variant="outlined" style={[styles.permissionCard, { borderColor: colors.error.main }]}>
+              <FontAwesome name="microphone-slash" size={24} color={colors.error.main} />
+              <Text variant="bodyMedium" style={{ marginTop: spacing[2], textAlign: 'center' }}>
+                Microphone permission required
+              </Text>
+              <Text variant="bodySmall" color="muted" style={{ marginTop: spacing[1], textAlign: 'center' }}>
+                Please enable microphone access in your device settings
+              </Text>
+            </Card>
+          ) : Platform.OS !== 'web' && PitchDetector.isExpoGo() ? (
+            <Card variant="outlined" style={styles.permissionCard}>
+              <FontAwesome name="exclamation-triangle" size={24} color={colors.warning.main} />
+              <Text variant="bodyMedium" style={{ marginTop: spacing[2], textAlign: 'center' }}>
+                Listen mode requires a development build
+              </Text>
+              <Text variant="bodySmall" color="muted" style={{ marginTop: spacing[1], textAlign: 'center' }}>
+                Expo Go doesn't support native pitch detection.{'\n'}
+                Use the web version or build a development APK.
+              </Text>
+            </Card>
+          ) : (
+            <>
+              <Button
+                variant={isListening ? 'secondary' : 'primary'}
+                size="lg"
+                fullWidth
+                onPress={isListening ? stopListening : startListening}
+              >
+                <View style={styles.listenButtonContent}>
+                  <FontAwesome 
+                    name={isListening ? 'stop' : 'microphone'} 
+                    size={20} 
+                    color={isListening ? colors.error.main : '#FFFFFF'} 
+                  />
+                  <Text style={{ 
+                    marginLeft: spacing[2], 
+                    color: isListening ? theme.text : '#FFFFFF',
+                    fontWeight: '600',
+                  }}>
+                    {isListening ? 'Stop Listening' : 'Start Listening'}
+                  </Text>
+                </View>
+              </Button>
+              {isListening && (
+                <View style={styles.listeningIndicator}>
+                  <View style={[styles.listeningDot, styles.listeningDotPulse, { backgroundColor: colors.error.main }]} />
+                  <Text variant="bodySmall" color="muted" style={{ marginLeft: spacing[2] }}>
+                    {detectedNote 
+                      ? `Hearing: ${detectedNote} ${detectedFrequency ? `(${detectedFrequency.toFixed(0)}Hz)` : ''}`
+                      : 'Listening... Play the note on your guitar'}
+                  </Text>
+                </View>
+              )}
+              {isListening && !detectedNote && (
+                <Text variant="bodySmall" color="muted" style={{ marginTop: spacing[2], textAlign: 'center' }}>
+                  Make sure your microphone is working and play loudly
+                </Text>
+              )}
+              <Button
+                variant="ghost"
+                size="md"
+                onPress={handleGiveUp}
+                style={{ marginTop: spacing[2] }}
+              >
+                Give Up
+              </Button>
+            </>
+          )}
         </View>
       )}
 
@@ -495,7 +778,11 @@ const styles = StyleSheet.create({
   promptCard: {
     alignItems: 'center',
     paddingVertical: spacing[4],
+    paddingHorizontal: spacing[4],
     marginBottom: spacing[4],
+    minHeight: 120,
+    overflow: 'visible',
+    flexShrink: 0,
   },
   positionInfo: {
     marginTop: spacing[2],
@@ -503,11 +790,15 @@ const styles = StyleSheet.create({
   noteDisplay: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     marginTop: spacing[2],
+    minHeight: 60,
   },
   targetNote: {
     fontSize: 48,
     fontWeight: '700',
+    lineHeight: 56,
+    textAlign: 'center',
   },
   playButton: {
     marginLeft: spacing[3],
@@ -561,5 +852,39 @@ const styles = StyleSheet.create({
   buttonContainer: {
     marginTop: 'auto',
     paddingBottom: spacing[4],
+  },
+  // Listen mode styles
+  detectedNoteContainer: {
+    marginTop: spacing[3],
+    paddingTop: spacing[2],
+    borderTopWidth: 1,
+    borderTopColor: colors.neutral[200],
+  },
+  listenControlsContainer: {
+    marginBottom: spacing[3],
+    alignItems: 'center',
+  },
+  permissionCard: {
+    alignItems: 'center',
+    padding: spacing[4],
+  },
+  listenButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  listeningIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing[3],
+  },
+  listeningDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  listeningDotPulse: {
+    // Animation would go here but RN doesn't support CSS animations
+    // The dot color indicates recording is active
   },
 });

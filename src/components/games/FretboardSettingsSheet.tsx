@@ -76,10 +76,10 @@ export function FretboardSettingsSheet({
                   variant="labelMedium"
                   style={{ color: settings.gameMode === 'identify' ? colors.primary[500] : theme.text }}
                 >
-                  Identify Note
+                  Identify
                 </Text>
                 <Text variant="bodySmall" color="muted">
-                  Name the highlighted note
+                  Name the note
                 </Text>
               </Pressable>
               <Pressable
@@ -100,10 +100,34 @@ export function FretboardSettingsSheet({
                   variant="labelMedium"
                   style={{ color: settings.gameMode === 'find' ? colors.primary[500] : theme.text }}
                 >
-                  Find Note
+                  Find
                 </Text>
                 <Text variant="bodySmall" color="muted">
-                  Tap the position for note
+                  Tap the position
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => onSettingsChange({ gameMode: 'listen' })}
+                style={[
+                  styles.modeButton,
+                  {
+                    backgroundColor: settings.gameMode === 'listen'
+                      ? colors.primary[isDark ? 900 : 50]
+                      : isDark ? colors.neutral[800] : colors.neutral[100],
+                    borderColor: settings.gameMode === 'listen'
+                      ? colors.primary[500]
+                      : 'transparent',
+                  },
+                ]}
+              >
+                <Text 
+                  variant="labelMedium"
+                  style={{ color: settings.gameMode === 'listen' ? colors.primary[500] : theme.text }}
+                >
+                  Listen
+                </Text>
+                <Text variant="bodySmall" color="muted">
+                  Play on guitar
                 </Text>
               </Pressable>
             </View>
@@ -179,6 +203,63 @@ export function FretboardSettingsSheet({
             </View>
 
             <View style={[styles.divider, { backgroundColor: theme.border }]} />
+
+            {/* Listen Mode Options */}
+            {settings.gameMode === 'listen' && (
+              <>
+                <Text variant="labelMedium" color="secondary" style={styles.sectionLabel}>
+                  Listen Mode
+                </Text>
+                <Switch
+                  label="Auto-advance when correct"
+                  description="Automatically move to next note"
+                  value={settings.autoAdvanceOnCorrect ?? false}
+                  onValueChange={(value) => onSettingsChange({ autoAdvanceOnCorrect: value })}
+                />
+                
+                <Text variant="bodySmall" color="muted" style={{ marginTop: spacing[3], marginBottom: spacing[2] }}>
+                  Microphone Sensitivity
+                </Text>
+                <View style={styles.sensitivityContainer}>
+                  {(['low', 'medium', 'high'] as const).map((level) => (
+                    <Pressable
+                      key={level}
+                      onPress={() => onSettingsChange({ listenSensitivity: level })}
+                      style={[
+                        styles.sensitivityButton,
+                        {
+                          backgroundColor: (settings.listenSensitivity ?? 'medium') === level
+                            ? colors.primary[isDark ? 900 : 50]
+                            : isDark ? colors.neutral[800] : colors.neutral[100],
+                          borderColor: (settings.listenSensitivity ?? 'medium') === level
+                            ? colors.primary[500]
+                            : 'transparent',
+                        },
+                      ]}
+                    >
+                      <Text 
+                        variant="labelSmall"
+                        style={{ 
+                          color: (settings.listenSensitivity ?? 'medium') === level 
+                            ? colors.primary[500] 
+                            : theme.text,
+                          textTransform: 'capitalize',
+                        }}
+                      >
+                        {level}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Text variant="bodySmall" color="muted" style={{ marginTop: spacing[1] }}>
+                  {(settings.listenSensitivity ?? 'medium') === 'low' && 'Best for noisy rooms - play loud & close to mic'}
+                  {(settings.listenSensitivity ?? 'medium') === 'medium' && 'Good balance - filters most background noise'}
+                  {(settings.listenSensitivity ?? 'medium') === 'high' && 'For quiet rooms only'}
+                </Text>
+                
+                <View style={[styles.divider, { backgroundColor: theme.border }]} />
+              </>
+            )}
 
             {/* Display Options */}
             <Text variant="labelMedium" color="secondary" style={styles.sectionLabel}>
@@ -287,5 +368,17 @@ const styles = StyleSheet.create({
   fretValue: {
     minWidth: 30,
     textAlign: 'center',
+  },
+  sensitivityContainer: {
+    flexDirection: 'row',
+    gap: spacing[2],
+  },
+  sensitivityButton: {
+    flex: 1,
+    paddingVertical: spacing[2],
+    paddingHorizontal: spacing[3],
+    borderRadius: borderRadius.md,
+    borderWidth: 2,
+    alignItems: 'center',
   },
 });
