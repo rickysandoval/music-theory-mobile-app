@@ -51,8 +51,8 @@ export function FretboardGame({ onSettingsPress, settings: gameSettings }: Fretb
   const [detectedNote, setDetectedNote] = useState<string | null>(null);
   const [detectedFrequency, setDetectedFrequency] = useState<number | null>(null);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
-  const listenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const autoAdvanceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const listenTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoAdvanceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isAutoAdvancing = useRef(false);
   
   // Refs to hold latest values for the pitch callback (avoids stale closures)
@@ -689,7 +689,7 @@ export function FretboardGame({ onSettingsPress, settings: gameSettings }: Fretb
           variant="primary"
           size="lg"
           fullWidth
-          onPress={startNewRound}
+          onPress={() => startNewRound()}
         >
           {isCorrect === null ? 'Skip' : 'Next'}
         </Button>

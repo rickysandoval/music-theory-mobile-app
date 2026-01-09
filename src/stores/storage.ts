@@ -60,6 +60,8 @@ export interface GameSettings {
     maxFret: number;
     useFlats: boolean;
     showOpenStringNotes: boolean;   // Show note names at the nut
+    autoAdvanceOnCorrect: boolean;  // Auto-advance in listen mode when correct
+    listenSensitivity: 'low' | 'medium' | 'high';  // Microphone sensitivity for listen mode
   };
 }
 
