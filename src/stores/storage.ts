@@ -51,7 +51,16 @@ export interface GameSettings {
     includeMajorChords: boolean;
     includeMinorChords: boolean;
   };
-  // Add more game settings as we add games
+  fretboardGame: {
+    gameMode: 'identify' | 'find';  // identify = name the note, find = tap the position
+    includeNaturalNotes: boolean;
+    includeAccidentals: boolean;
+    strings: boolean[];             // [E, A, D, G, B, E] low to high
+    minFret: number;
+    maxFret: number;
+    useFlats: boolean;
+    showOpenStringNotes: boolean;   // Show note names at the nut
+  };
 }
 
 const DEFAULT_GAME_SETTINGS: GameSettings = {
@@ -60,6 +69,16 @@ const DEFAULT_GAME_SETTINGS: GameSettings = {
     includeAccidentalRoots: true,
     includeMajorChords: true,
     includeMinorChords: true,
+  },
+  fretboardGame: {
+    gameMode: 'identify',
+    includeNaturalNotes: true,
+    includeAccidentals: true,
+    strings: [true, true, true, true, true, true], // All strings enabled
+    minFret: 0,
+    maxFret: 5,
+    useFlats: false,
+    showOpenStringNotes: true,
   },
 };
 
@@ -70,25 +89,43 @@ export async function getGameSettings(): Promise<GameSettings> {
     return DEFAULT_GAME_SETTINGS;
   }
   
-  // Migrate old settings format to new format
+  let needsSave = false;
+  let migratedSettings = { ...settings };
+  
+  // Migrate old chord game settings format
   const chordGame = settings.chordGame as any;
   if (chordGame.includeDiatonicRoots === undefined) {
     // Old format had: includeSharpsFlatRoots, includeMinorChords
-    // Convert to new format
-    const migratedSettings: GameSettings = {
-      chordGame: {
-        includeDiatonicRoots: true, // Always include diatonic by default
-        includeAccidentalRoots: chordGame.includeSharpsFlatRoots ?? true,
-        includeMajorChords: true, // Old format didn't have this, default to true
-        includeMinorChords: chordGame.includeMinorChords ?? true,
-      },
+    migratedSettings.chordGame = {
+      includeDiatonicRoots: true,
+      includeAccidentalRoots: chordGame.includeSharpsFlatRoots ?? true,
+      includeMajorChords: true,
+      includeMinorChords: chordGame.includeMinorChords ?? true,
     };
-    // Save migrated settings
-    await saveGameSettings(migratedSettings);
-    return migratedSettings;
+    needsSave = true;
   }
   
-  return settings;
+  // Add fretboard game settings if missing
+  if (!settings.fretboardGame) {
+    migratedSettings.fretboardGame = DEFAULT_GAME_SETTINGS.fretboardGame;
+    needsSave = true;
+  } else {
+    // Migrate new fretboard settings fields
+    const fretboardGame = settings.fretboardGame as any;
+    if (fretboardGame.showOpenStringNotes === undefined) {
+      migratedSettings.fretboardGame = {
+        ...fretboardGame,
+        showOpenStringNotes: DEFAULT_GAME_SETTINGS.fretboardGame.showOpenStringNotes,
+      };
+      needsSave = true;
+    }
+  }
+  
+  if (needsSave) {
+    await saveGameSettings(migratedSettings);
+  }
+  
+  return migratedSettings;
 }
 
 export async function saveGameSettings(settings: GameSettings): Promise<void> {
@@ -103,6 +140,21 @@ export async function updateChordGameSettings(
     ...current,
     chordGame: {
       ...current.chordGame,
+      ...updates,
+    },
+  };
+  await saveGameSettings(updated);
+  return updated;
+}
+
+export async function updateFretboardGameSettings(
+  updates: Partial<GameSettings['fretboardGame']>
+): Promise<GameSettings> {
+  const current = await getGameSettings();
+  const updated = {
+    ...current,
+    fretboardGame: {
+      ...current.fretboardGame,
       ...updates,
     },
   };

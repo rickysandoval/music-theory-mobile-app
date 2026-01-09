@@ -101,8 +101,7 @@ export default function GamesScreen() {
           title="Fretboard Notes"
           description="Master the notes on the guitar fretboard"
           icon="hand-rock-o"
-          onPress={() => {}}
-          comingSoon
+          onPress={() => router.push('/games/fretboard-notes')}
         />
 
         <GameCard

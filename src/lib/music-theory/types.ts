@@ -16,6 +16,18 @@ export interface ChordGameSettings {
   includeMinorChords: boolean;
 }
 
+export type FretboardGameMode = 'identify' | 'find';
+
+export interface FretboardGameSettings {
+  gameMode: FretboardGameMode;     // 'identify' = name the note at position, 'find' = tap the position for note
+  includeNaturalNotes: boolean;    // C, D, E, F, G, A, B
+  includeAccidentals: boolean;     // Sharps & flats
+  strings: boolean[];              // Which strings to include [E, A, D, G, B, E] (low to high)
+  minFret: number;                 // Minimum fret (0 = open)
+  maxFret: number;                 // Maximum fret
+  useFlats: boolean;               // Display preference: flats vs sharps
+}
+
 export type NoteName = 'C' | 'C#' | 'Db' | 'D' | 'D#' | 'Eb' | 'E' | 'F' | 'F#' | 'Gb' | 'G' | 'G#' | 'Ab' | 'A' | 'A#' | 'Bb' | 'B';
 
 export type NaturalNote = 'C' | 'D' | 'E' | 'F' | 'G' | 'A' | 'B';

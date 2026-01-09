@@ -7,6 +7,7 @@ import {
   GameSettings, 
   getGameSettings, 
   updateChordGameSettings,
+  updateFretboardGameSettings,
 } from './storage';
 
 export function useSettings() {
@@ -31,9 +32,20 @@ export function useSettings() {
     []
   );
 
+  // Update fretboard game settings
+  const updateFretboardSettings = useCallback(
+    async (updates: Partial<GameSettings['fretboardGame']>) => {
+      const updated = await updateFretboardGameSettings(updates);
+      setSettings(updated);
+      return updated;
+    },
+    []
+  );
+
   return {
     settings,
     isLoading,
     updateChordSettings,
+    updateFretboardSettings,
   };
 }
