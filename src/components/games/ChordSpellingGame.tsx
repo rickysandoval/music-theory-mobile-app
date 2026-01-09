@@ -59,6 +59,7 @@ export function ChordSpellingGame({
   const [hasChecked, setHasChecked] = useState(false); // Track if we've checked answers
   const [isFirstTry, setIsFirstTry] = useState(true); // Track if this is their first attempt (for test mode)
   const [hasReportedResult, setHasReportedResult] = useState(false); // Ensure we only report once per chord
+  const [wasRevealed, setWasRevealed] = useState(false); // Track if user revealed the answer
 
   // Compute which notes are correct (only after all slots filled)
   // Now checks position: slot 1 must be third, slot 2 must be fifth
@@ -94,6 +95,7 @@ export function ChordSpellingGame({
       setHasChecked(false);
       setIsFirstTry(true);
       setHasReportedResult(false);
+      setWasRevealed(false);
     }
   }, [isTestMode, testChord]);
 
@@ -118,6 +120,7 @@ export function ChordSpellingGame({
     setHasChecked(false);
     setIsFirstTry(true);
     setHasReportedResult(false);
+    setWasRevealed(false);
   }, [settings, currentChord, isTestMode]);
 
   const handleSlotPress = useCallback((index: number) => {
@@ -273,6 +276,27 @@ export function ChordSpellingGame({
     }
   }, [userNotes]);
 
+  // Handle "Reveal" button - shows the answer
+  // In practice mode: just shows the answer
+  // In test mode: counts as incorrect
+  const handleReveal = useCallback(() => {
+    if (!currentChord || isComplete) return;
+    
+    // Fill in the correct notes
+    setUserNotes([currentChord.root, currentChord.notes[1], currentChord.notes[2]]);
+    setIsComplete(true);
+    setShowFeedback(true);
+    setSelectedIndex(null);
+    setHasChecked(true);
+    setIsFirstTry(false); // In test mode, this marks it as incorrect
+    setWasRevealed(true); // Mark that user revealed the answer
+    
+    // Play the correct chord
+    setTimeout(() => {
+      playChord(currentChord.notes);
+    }, 200);
+  }, [currentChord, isComplete]);
+
   // Handle "Next Chord" or "Skip" in test mode
   // NOTE: This must be defined BEFORE any early returns to maintain hook order
   const handleNext = useCallback(() => {
@@ -398,7 +422,7 @@ export function ChordSpellingGame({
       {/* Feedback - success or failure */}
       {showFeedback && isComplete && (() => {
         // Use centralized feedback logic (see gameFeedback.ts for scenarios)
-        const feedback = determineFeedback({ isTestMode, isFirstTry, isComplete });
+        const feedback = determineFeedback({ isTestMode, isFirstTry, isComplete, wasRevealed });
         const feedbackColor = feedback.color === 'success' ? colors.success : colors.error;
         const subtitleText = getFeedbackSubtitle(
           feedback.type, 
@@ -450,8 +474,18 @@ export function ChordSpellingGame({
         />
       </View>
 
-      {/* Action button */}
+      {/* Action buttons */}
       <View style={styles.buttonContainer}>
+        {/* Reveal button - only show when not complete */}
+        {!isComplete && (
+          <Button
+            variant="ghost"
+            size="md"
+            onPress={handleReveal}
+          >
+            {isTestMode ? 'Reveal (counts as incorrect)' : 'Reveal answer'}
+          </Button>
+        )}
         <Button
           variant="primary"
           size="lg"
@@ -567,5 +601,7 @@ const styles = StyleSheet.create({
   buttonContainer: {
     marginTop: 'auto',
     paddingBottom: spacing[4],
+    gap: spacing[1],
+    alignItems: 'center',
   },
 });

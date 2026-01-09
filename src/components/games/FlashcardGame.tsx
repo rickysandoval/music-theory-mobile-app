@@ -184,6 +184,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[6],
     maxWidth: 340,
     width: '100%',
+    overflow: 'visible',
   },
   label: {
     marginBottom: spacing[4],
@@ -191,7 +192,10 @@ const styles = StyleSheet.create({
   chordName: {
     fontSize: 56,
     fontWeight: '700',
+    lineHeight: 68,
+    minHeight: 68,
     marginBottom: spacing[6],
+    textAlign: 'center',
   },
   answerArea: {
     minHeight: 100,
@@ -206,23 +210,29 @@ const styles = StyleSheet.create({
   },
   answerSection: {
     width: '100%',
+    overflow: 'visible',
   },
   notesContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     gap: spacing[4],
-    paddingVertical: spacing[4],
+    paddingVertical: spacing[5],
     paddingHorizontal: spacing[6],
     borderRadius: borderRadius.lg,
+    overflow: 'visible',
   },
   noteItem: {
     alignItems: 'center',
     minWidth: 60,
+    overflow: 'visible',
   },
   noteText: {
     fontSize: 28,
     fontWeight: '700',
+    lineHeight: 36,
+    minHeight: 36,
     marginTop: spacing[1],
+    textAlign: 'center',
   },
   buttonContainer: {
     flexDirection: 'row',

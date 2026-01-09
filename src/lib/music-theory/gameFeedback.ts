@@ -5,7 +5,7 @@
  * This keeps the logic testable and consistent across game modes.
  */
 
-export type FeedbackType = 'correct' | 'corrected' | 'incorrect';
+export type FeedbackType = 'correct' | 'corrected' | 'incorrect' | 'revealed';
 
 export interface FeedbackState {
   type: FeedbackType;
@@ -21,6 +21,8 @@ export interface FeedbackInput {
   isFirstTry: boolean;
   /** Whether the game round is complete */
   isComplete: boolean;
+  /** Whether the user revealed the answer (optional) */
+  wasRevealed?: boolean;
 }
 
 /**
@@ -29,15 +31,17 @@ export interface FeedbackInput {
  * Scenarios:
  * 1. Practice mode, correct on first try → "Correct!" (success)
  * 2. Practice mode, corrected after retry → "Corrected!" (success)
- * 3. Test mode, correct on first try → "Correct!" (success)
- * 4. Test mode, incorrect (no retries allowed) → "Incorrect" (error)
+ * 3. Practice mode, revealed answer → "Revealed" (success color, learning opportunity)
+ * 4. Test mode, correct on first try → "Correct!" (success)
+ * 5. Test mode, incorrect (no retries allowed) → "Incorrect" (error)
+ * 6. Test mode, revealed answer → "Incorrect" (error, counts as fail)
  * 
  * Note: In practice mode, isComplete=true always means the answer is correct
  * (because the game doesn't complete until you get it right).
  * In test mode, isComplete=true can mean correct OR incorrect.
  */
 export function determineFeedback(input: FeedbackInput): FeedbackState {
-  const { isTestMode, isFirstTry, isComplete } = input;
+  const { isTestMode, isFirstTry, isComplete, wasRevealed } = input;
 
   // If not complete, no feedback to show
   if (!isComplete) {
@@ -50,13 +54,33 @@ export function determineFeedback(input: FeedbackInput): FeedbackState {
     };
   }
 
-  // Scenario 1 & 3: Correct on first try (both modes)
+  // Scenario 1 & 4: Correct on first try (both modes)
   if (isFirstTry) {
     return {
       type: 'correct',
       color: 'success',
       icon: '✓',
       title: 'Correct!',
+    };
+  }
+
+  // Handle revealed answers
+  if (wasRevealed) {
+    // Scenario 6: Test mode, revealed = incorrect
+    if (isTestMode) {
+      return {
+        type: 'incorrect',
+        color: 'error',
+        icon: '✗',
+        title: 'Incorrect',
+      };
+    }
+    // Scenario 3: Practice mode, revealed = show the answer (learning)
+    return {
+      type: 'revealed',
+      color: 'success',
+      icon: '✓',
+      title: 'Revealed',
     };
   }
 
@@ -71,7 +95,7 @@ export function determineFeedback(input: FeedbackInput): FeedbackState {
     };
   }
 
-  // Scenario 4: Test mode, incorrect (they didn't get it on first try, no retries)
+  // Scenario 5: Test mode, incorrect (they didn't get it on first try, no retries)
   return {
     type: 'incorrect',
     color: 'error',
@@ -94,6 +118,8 @@ export function getFeedbackSubtitle(
     case 'correct':
     case 'corrected':
       return `${chordName}: ${notesDisplay}`;
+    case 'revealed':
+      return `The answer is: ${notesDisplay}`;
     case 'incorrect':
       return `Correct answer: ${notesDisplay}`;
   }

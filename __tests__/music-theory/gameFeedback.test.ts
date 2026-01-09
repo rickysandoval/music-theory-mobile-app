@@ -313,4 +313,63 @@ describe('Game Flow Scenarios', () => {
       expect(feedback.icon).not.toBe('✗');
     });
   });
+
+  describe('Reveal Answer Flow', () => {
+    it('Scenario: User reveals answer in practice mode (learning opportunity)', () => {
+      // User doesn't know the answer and clicks "Reveal Answer"
+      // In practice mode, this should show the answer with a neutral success tone
+      
+      const feedback = determineFeedback({
+        isTestMode: false,
+        isFirstTry: false,
+        isComplete: true,
+        wasRevealed: true,
+      });
+
+      expect(feedback.type).toBe('revealed');
+      expect(feedback.title).toBe('Revealed');
+      expect(feedback.color).toBe('success'); // Not punitive in practice mode
+      expect(feedback.icon).toBe('✓');
+      
+      const subtitle = getFeedbackSubtitle(feedback.type, 'C', ['C', 'E', 'G']);
+      expect(subtitle).toBe('The answer is: C - E - G');
+    });
+
+    it('Scenario: User reveals answer in test mode (counts as incorrect)', () => {
+      // User gives up and clicks "Reveal" in test mode
+      // This should count as incorrect
+      
+      const feedback = determineFeedback({
+        isTestMode: true,
+        isFirstTry: false,
+        isComplete: true,
+        wasRevealed: true,
+      });
+
+      expect(feedback.type).toBe('incorrect');
+      expect(feedback.title).toBe('Incorrect');
+      expect(feedback.color).toBe('error');
+      expect(feedback.icon).toBe('✗');
+      
+      const subtitle = getFeedbackSubtitle(feedback.type, 'Am', ['A', 'C', 'E']);
+      expect(subtitle).toBe('Correct answer: A - C - E');
+    });
+
+    it('should show "revealed" type, not "corrected" when wasRevealed is true in practice mode', () => {
+      // Edge case: User reveals answer after getting it wrong
+      // Should show "Revealed" not "Corrected!" because they didn't correct it themselves
+      
+      const feedback = determineFeedback({
+        isTestMode: false,
+        isFirstTry: false,
+        isComplete: true,
+        wasRevealed: true,
+      });
+
+      expect(feedback.type).toBe('revealed');
+      expect(feedback.type).not.toBe('corrected');
+      expect(feedback.title).toBe('Revealed');
+      expect(feedback.title).not.toBe('Corrected!');
+    });
+  });
 });
