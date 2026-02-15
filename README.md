@@ -98,6 +98,12 @@ For Google Play Store:
 eas build --platform android --profile production
 ```
 
+## Documentation
+
+- **[docs/PRODUCT.md](docs/PRODUCT.md)** — Product documentation: all current features, screens, and behavior.
+- **[docs/ROADMAP.md](docs/ROADMAP.md)** — Roadmap: planned features (Interval Training, Scale Patterns, etc.) and optional phases.
+- **[docs/LAUNCH-PLAN.md](docs/LAUNCH-PLAN.md)** — Launch plan: checklist to go from development to production-ready (store, privacy, testing).
+
 ## Project Structure
 
 ```
@@ -118,6 +124,7 @@ music-theory-mobile/
 │   │   └── music-theory/ # Music theory utilities
 │   ├── stores/           # State management & persistence
 │   └── theme/            # Colors, typography, spacing
+├── docs/                 # Product docs, roadmap, launch plan
 ├── __tests__/            # Unit tests
 ├── assets/               # Images, fonts
 └── app.json              # Expo configuration
