@@ -451,8 +451,11 @@ export class PitchDetector {
       try {
         const Pitchy = await import('react-native-pitchy');
         await Pitchy.default.stop();
-      } catch (error) {
-        console.error('[PitchDetector] Error stopping mobile pitch detection:', error);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!message?.includes('Not recording')) {
+          console.error('[PitchDetector] Error stopping mobile pitch detection:', error);
+        }
       }
     }
     

@@ -5,13 +5,15 @@ A React Native (Expo) mobile app for learning music theory and guitar fundamenta
 ## Features
 
 - 🎸 **Chord Spelling Game** - Learn the notes that make up major and minor chords
+- 🎸 **Fretboard Notes Game** - Identify, find, or play notes on the guitar fretboard (including Listen mode with mic)
+- ⏱️ **Metronome** - Steady click at any BPM (40–240)
+- 🎵 **Tuner** - Real-time pitch detection for tuning instruments
 - 📊 **Progress Tracking** - Track your accuracy and practice history
 - 🌙 **Dark/Light Mode** - Comfortable practice anytime
 - 💾 **Local Persistence** - Settings and progress saved locally
 - 🎹 **Interactive Piano** - Touch-friendly keyboard for note input
 
 ### Coming Soon
-- Fretboard note identification
 - Interval training
 - Scale patterns
 
@@ -55,6 +57,21 @@ npm run web       # Opens in browser
 ```
 
 Scan the QR code with Expo Go (Android) or Camera app (iOS) to run on your device.
+
+#### Running two Expo apps at once
+
+You can run this app and another Expo app in dev mode at the same time by using different ports. Start the first app as usual, then start the second with an explicit port:
+
+```bash
+# Terminal 1: this app (default port 8081)
+npm start
+
+# Terminal 2: other Expo app
+cd /path/to/other-expo-app
+npx expo start --port 8082
+```
+
+Connect to each app from Expo Go by choosing the dev server that appears (they will show different ports/URLs).
 
 ### Running Tests
 

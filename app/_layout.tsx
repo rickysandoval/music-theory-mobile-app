@@ -72,6 +72,27 @@ function RootLayoutNav() {
             presentation: 'card',
           }} 
         />
+        <Stack.Screen 
+          name="games/fretboard-notes" 
+          options={{ 
+            title: 'Fretboard Notes',
+            presentation: 'card',
+          }} 
+        />
+        <Stack.Screen 
+          name="tools/metronome" 
+          options={{ 
+            title: 'Metronome',
+            presentation: 'card',
+          }} 
+        />
+        <Stack.Screen 
+          name="tools/tuner" 
+          options={{ 
+            title: 'Tuner',
+            presentation: 'card',
+          }} 
+        />
       </Stack>
     </>
   );

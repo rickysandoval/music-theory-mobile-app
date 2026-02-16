@@ -8,6 +8,9 @@ const STORAGE_KEYS = {
   GAME_SETTINGS: '@music_theory_game_settings',
   GAME_PROGRESS: '@music_theory_game_progress',
   THEME: '@music_theory_theme',
+  METRONOME_BPM: '@music_theory_metronome_bpm',
+  METRONOME_SETTINGS: '@music_theory_metronome_settings',
+  TUNER_TUNING_ID: '@music_theory_tuner_tuning_id',
 } as const;
 
 export type StorageKey = keyof typeof STORAGE_KEYS;
@@ -224,4 +227,68 @@ export async function recordChordGameResult(isCorrect: boolean): Promise<GamePro
 
 export async function resetProgress(): Promise<void> {
   await setItem('GAME_PROGRESS', DEFAULT_GAME_PROGRESS);
+}
+
+/**
+ * Metronome BPM (default 90)
+ */
+const DEFAULT_METRONOME_BPM = 90;
+
+export async function getMetronomeBpm(): Promise<number> {
+  const value = await getItem<number>('METRONOME_BPM');
+  if (value == null || typeof value !== 'number') return DEFAULT_METRONOME_BPM;
+  return Math.max(40, Math.min(240, Math.round(value)));
+}
+
+export async function setMetronomeBpm(bpm: number): Promise<void> {
+  const clamped = Math.max(40, Math.min(240, Math.round(bpm)));
+  await setItem('METRONOME_BPM', clamped);
+}
+
+/**
+ * Metronome sound settings
+ */
+export type MetronomeVoice = 'high' | 'low' | 'snare' | 'beep';
+export type MetronomeSubdivision = 'quarter' | 'eighth';
+
+export interface MetronomeSettings {
+  voice: MetronomeVoice;
+  timeSignature: 2 | 3 | 4; // 2/4, 3/4, 4/4
+  accentFirstBeat: boolean;
+  subdivision: MetronomeSubdivision;
+}
+
+const DEFAULT_METRONOME_SETTINGS: MetronomeSettings = {
+  voice: 'high',
+  timeSignature: 4,
+  accentFirstBeat: true,
+  subdivision: 'quarter',
+};
+
+export async function getMetronomeSettings(): Promise<MetronomeSettings> {
+  const raw = await getItem<MetronomeSettings>('METRONOME_SETTINGS');
+  if (!raw) return DEFAULT_METRONOME_SETTINGS;
+  let voice = raw.voice;
+  if (voice === 'wood') voice = 'snare'; // migrate old setting
+  return {
+    voice: ['high', 'low', 'snare', 'beep'].includes(voice) ? voice : DEFAULT_METRONOME_SETTINGS.voice,
+    timeSignature: [2, 3, 4].includes(raw.timeSignature) ? raw.timeSignature : DEFAULT_METRONOME_SETTINGS.timeSignature,
+    accentFirstBeat: typeof raw.accentFirstBeat === 'boolean' ? raw.accentFirstBeat : DEFAULT_METRONOME_SETTINGS.accentFirstBeat,
+    subdivision: raw.subdivision === 'eighth' ? 'eighth' : 'quarter',
+  };
+}
+
+export async function setMetronomeSettings(settings: MetronomeSettings): Promise<void> {
+  await setItem('METRONOME_SETTINGS', settings);
+}
+
+const DEFAULT_TUNER_TUNING_ID = 'guitar-standard';
+
+export async function getTunerTuningId(): Promise<string> {
+  const id = await getItem<string>('TUNER_TUNING_ID');
+  return id ?? DEFAULT_TUNER_TUNING_ID;
+}
+
+export async function setTunerTuningId(id: string): Promise<void> {
+  await setItem('TUNER_TUNING_ID', id);
 }

@@ -4,13 +4,11 @@
  */
 
 import React from 'react';
-import { View, StyleSheet, Pressable, Dimensions } from 'react-native';
+import { View, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
 import { Text } from '../ui/Text';
 import { useTheme } from '../ui/ThemeContext';
 import { colors, spacing } from '@/src/theme';
 import { getNoteAtFret } from '@/src/lib/music-theory';
-
-const SCREEN_WIDTH = Dimensions.get('window').width;
 // String numbers (1 = high E, 6 = low E in standard notation)
 const STRING_NUMBERS = ['6', '5', '4', '3', '2', '1']; // Index 0 = low E = string 6
 
@@ -27,6 +25,8 @@ interface FretboardProps {
   disabled?: boolean;
   useFlats?: boolean;
   enabledStrings?: boolean[]; // Which strings are enabled for interaction
+  /** When set (e.g. in landscape), constrains width so the fretboard fits inside a column */
+  containerWidth?: number;
 }
 
 export function Fretboard({
@@ -42,9 +42,12 @@ export function Fretboard({
   disabled = false,
   useFlats = false,
   enabledStrings = [true, true, true, true, true, true],
+  containerWidth,
 }: FretboardProps) {
   const { theme, isDark } = useTheme();
-  
+  const { width: windowWidth } = useWindowDimensions();
+  const widthForLayout = containerWidth ?? windowWidth;
+
   // When minFret is 0, we show the nut but don't render fret 0 as a cell
   // Fret cells start from fret 1 (or minFret if > 0)
   const showNut = minFret === 0;
@@ -54,7 +57,7 @@ export function Fretboard({
   const nutWidth = 6;
   const stringLabelWidth = 30;
   const openNoteWidth = showOpenStringNotes ? 24 : 0;
-  const fretWidth = Math.min((SCREEN_WIDTH - spacing[8] - (showNut ? nutWidth : 0) - stringLabelWidth - openNoteWidth) / fretCellCount, 60);
+  const fretWidth = Math.min((widthForLayout - spacing[8] - (showNut ? nutWidth : 0) - stringLabelWidth - openNoteWidth) / fretCellCount, 60);
   const stringSpacing = 28;
   const totalStringsHeight = stringSpacing * 6;
   

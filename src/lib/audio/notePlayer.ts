@@ -3,6 +3,7 @@
  * Uses expo-av with generated sine wave tones
  */
 
+import { Platform } from 'react-native';
 import { Audio } from 'expo-av';
 
 // Chromatic note order (for calculating semitone distances)
@@ -65,21 +66,25 @@ export async function initializeAudio(): Promise<void> {
 /**
  * Generate a WAV data URI for a sine wave tone
  */
-function generateToneDataUri(frequency: number, duration: number = 0.5, sampleRate: number = 44100): string {
+function generateToneDataUri(
+  frequency: number,
+  duration: number = 0.5,
+  sampleRate: number = 44100,
+  amplitude: number = 0.25
+): string {
   const numSamples = Math.floor(sampleRate * duration);
-  const amplitude = 0.25; // Slightly quieter to prevent clipping when playing chords
   
   const samples = new Int16Array(numSamples);
+  const isShortTransient = duration < 0.02;
+  const attackTime = isShortTransient ? 0.0002 : 0.015;
+  const releaseTime = isShortTransient ? duration * 0.6 : 0.08;
   for (let i = 0; i < numSamples; i++) {
     const t = i / sampleRate;
-    // Apply envelope to avoid clicks (attack and release)
-    const attackTime = 0.015;
-    const releaseTime = 0.08;
     let envelope = 1;
     if (t < attackTime) {
-      envelope = t / attackTime;
+      envelope = attackTime > 0 ? t / attackTime : 1;
     } else if (t > duration - releaseTime) {
-      envelope = Math.max(0, (duration - t) / releaseTime);
+      envelope = releaseTime > 0 ? Math.max(0, (duration - t) / releaseTime) : 1;
     }
     samples[i] = Math.floor(amplitude * envelope * 32767 * Math.sin(2 * Math.PI * frequency * t));
   }
@@ -215,6 +220,92 @@ async function playFrequency(frequency: number, duration: number): Promise<void>
   } catch (error) {
     console.warn('Failed to play frequency:', error);
   }
+}
+
+/** Metronome voice params: [frequency Hz, duration s]. Snare = short bright stick hit (sine). */
+const METRONOME_VOICES: Record<string, [number, number]> = {
+  high: [1000, 0.04],
+  low: [400, 0.04],
+  snare: [2200, 0.005], // short bright tick – one clear hit
+  beep: [800, 0.08],
+};
+
+export type MetronomeVoice = keyof typeof METRONOME_VOICES;
+
+/** Web: shared AudioContext for metronome (created on first user gesture) */
+let webClickContext: AudioContext | null = null;
+
+/** Accent: louder and slightly lower pitch for clear downbeat. Subdivision: quieter for "and" beats. */
+function getClickParams(
+  voice: MetronomeVoice,
+  accent: boolean,
+  subdivision: boolean
+): { freq: number; dur: number; gain: number } {
+  const [freq, dur] = METRONOME_VOICES[voice] ?? METRONOME_VOICES.high;
+  if (subdivision) {
+    return { freq, dur, gain: 0.14 };
+  }
+  if (accent) {
+    return { freq: freq * 1.25, dur: dur * 1.2, gain: 0.52 };
+  }
+  return { freq, dur, gain: 0.25 };
+}
+
+function playClickWeb(voice: MetronomeVoice, accent: boolean, subdivision: boolean): void {
+  if (typeof window === 'undefined') return;
+  const { freq, dur, gain } = getClickParams(voice, accent, subdivision);
+  const attackTime = dur < 0.02 ? 0.0002 : 0.015;
+  const releaseTime = dur < 0.02 ? dur * 0.6 : 0.08;
+  const Ctx = (window as typeof window & { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }).AudioContext
+    || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!Ctx) return;
+  if (!webClickContext) webClickContext = new Ctx();
+  const ctx = webClickContext;
+  if (ctx.state === 'suspended') ctx.resume();
+  const osc = ctx.createOscillator();
+  const gainNode = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+  osc.connect(gainNode);
+  gainNode.connect(ctx.destination);
+  gainNode.gain.setValueAtTime(0, ctx.currentTime);
+  gainNode.gain.linearRampToValueAtTime(gain, ctx.currentTime + attackTime);
+  gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + dur);
+}
+
+/**
+ * Play a metronome click with optional voice, accent (downbeat), and subdivision (softer "and" beat).
+ * On web uses Web Audio API; on native uses expo-av with generated tone or noise (snare).
+ */
+export async function playMetronomeClick(
+  voice: MetronomeVoice = 'high',
+  accent: boolean = false,
+  subdivision: boolean = false
+): Promise<void> {
+  if (Platform.OS === 'web') {
+    playClickWeb(voice, accent, subdivision);
+    return;
+  }
+  await initializeAudio();
+  const { freq, dur, gain } = getClickParams(voice, accent, subdivision);
+  try {
+    const uri = generateToneDataUri(freq, dur, 44100, gain);
+    const { sound } = await Audio.Sound.createAsync({ uri });
+    await sound.playAsync();
+    await sound.unloadAsync();
+  } catch (error) {
+    console.warn('Failed to play metronome click:', error);
+  }
+}
+
+/**
+ * Play a short metronome click (default voice, no accent).
+ * Safe to call repeatedly at high BPM.
+ */
+export async function playClick(): Promise<void> {
+  return playMetronomeClick('high', false);
 }
 
 /**

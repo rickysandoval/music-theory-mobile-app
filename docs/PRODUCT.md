@@ -32,6 +32,8 @@ This document describes all current features of the app for product tracking and
 |-----------------|------------------------|--------------------------------------------|
 | Chord Spelling  | `games/chord-spelling` | Chord spelling game (practice/test, piano/flashcard) |
 | Fretboard Notes | `games/fretboard-notes`| Fretboard note game (identify / find / listen)       |
+| Metronome       | `tools/metronome`      | Steady BPM click (40–240)                            |
+| Tuner           | `tools/tuner`          | Real-time pitch detection for tuning                 |
 
 - **404:** `+not-found.tsx` — "Oops!" screen for unknown routes.
 
@@ -47,6 +49,9 @@ This document describes all current features of the app for product tracking and
   - **Fretboard Notes** — Navigate to fretboard game.
   - **Interval Training** — “Coming Soon” (no navigation).
   - **Scale Patterns** — “Coming Soon” (no navigation).
+- **Tools section:** Same card style as games.
+  - **Metronome** — Navigate to metronome tool.
+  - **Tuner** — Navigate to tuner tool.
 - **Coming Soon** badge and disabled tap for future games.
 
 ### 2. Chord Spelling Game
@@ -102,7 +107,22 @@ This document describes all current features of the app for product tracking and
 
 **Persistence:** Fretboard game settings are persisted; **progress/stats for Fretboard are not yet stored** (Progress screen is Chord Spelling only).
 
-### 4. Progress Screen
+### 4. Metronome (Tools)
+
+- **Purpose:** Steady click at a configurable tempo for practice.
+- **UI:** BPM display (40–240), +/- buttons to change BPM in steps of 5, Start/Stop.
+- **Audio:** Short synthesized click via `playClick()` in `src/lib/audio` (no asset required). Plays every `60000/BPM` ms while running.
+- **Persistence:** None (BPM is in-memory only for the session).
+
+### 5. Tuner (Tools)
+
+- **Purpose:** Real-time pitch detection for tuning guitar or other instruments.
+- **UI:** Detected note (e.g. A4), frequency in Hz, simple gauge showing cents sharp/flat (±50¢). Start/Stop listening.
+- **Permissions:** Uses same microphone permission as Fretboard Listen mode; prompt and error state if denied.
+- **Implementation:** Reuses `PitchDetector` from `src/lib/audio` with medium sensitivity.
+- **Persistence:** None.
+
+### 6. Progress Screen
 
 - **Chord Spelling stats:** Total played, Correct count, Accuracy %, Last played date.
 - **Empty state:** Shown when user has not played Chord Spelling yet.
@@ -110,7 +130,7 @@ This document describes all current features of the app for product tracking and
 
 No Fretboard or other game stats are displayed yet.
 
-### 5. Settings Screen
+### 7. Settings Screen
 
 **Appearance**
 
@@ -127,13 +147,13 @@ No Fretboard or other game stats are displayed yet.
 
 **Note:** Fretboard game settings are not duplicated here; they live in the Fretboard game’s settings sheet.
 
-### 6. Theme & Design
+### 8. Theme & Design
 
 - **Light / dark:** Full theme support; follows system or manual override from Settings.
 - **Design system:** Custom theme (colors, typography, spacing); reusable UI: Button, Card, Text, Switch, etc.
 - **Status bar:** Style (light/dark) follows theme.
 
-### 7. Persistence (AsyncStorage)
+### 9. Persistence (AsyncStorage)
 
 | Key (concept)     | Content |
 |-------------------|--------|
@@ -143,7 +163,7 @@ No Fretboard or other game stats are displayed yet.
 
 Storage is local only; no backend or sync.
 
-### 8. Audio & Permissions
+### 10. Audio & Permissions
 
 - **Piano / playback:** expo-av for playing note sounds in Chord Spelling (and anywhere notes are played).
 - **Pitch detection:** Used in Fretboard “Listen” mode; Web Audio API (web) and react-native-pitchy (mobile); microphone permission required on device.
@@ -163,7 +183,7 @@ Storage is local only; no backend or sync.
 
 ## Changelog (high level)
 
-- **1.0.0 (current):** Chord Spelling (practice/test, piano/flashcard), Fretboard Notes (identify/find/listen), Progress (Chord only), Settings, dark mode, local persistence, Android/iOS capable with EAS.
+- **1.0.0 (current):** Chord Spelling (practice/test, piano/flashcard), Fretboard Notes (identify/find/listen), Metronome (BPM click), Tuner (pitch detection), Progress (Chord only), Settings, dark mode, local persistence, Android/iOS capable with EAS.
 
 ---
 

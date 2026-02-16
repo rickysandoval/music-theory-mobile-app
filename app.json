@@ -3,7 +3,7 @@
     "name": "Music Theory",
     "slug": "music-theory-mobile",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "musictheory",
     "userInterfaceStyle": "automatic",
@@ -15,6 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
+      "requireFullScreen": true,
       "bundleIdentifier": "com.musictheory.app",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "This app uses the microphone to detect notes played on your guitar for the Listen mode in the Fretboard game."
@@ -39,7 +40,8 @@
     "plugins": [
       "expo-router",
       "expo-audio",
-      "expo-asset"
+      "expo-asset",
+      ["expo-screen-orientation", { "initialOrientation": "DEFAULT" }]
     ],
     "experiments": {
       "typedRoutes": true

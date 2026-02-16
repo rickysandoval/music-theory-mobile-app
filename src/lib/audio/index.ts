@@ -6,7 +6,10 @@ export {
   initializeAudio, 
   playNote, 
   playChord, 
-  cleanupAudio 
+  playClick, 
+  playMetronomeClick, 
+  cleanupAudio,
+  type MetronomeVoice,
 } from './notePlayer';
 
 export { 

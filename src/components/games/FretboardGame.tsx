@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, StyleSheet, Pressable, Vibration, Platform } from 'react-native';
+import { View, StyleSheet, Pressable, Vibration, Platform, useWindowDimensions } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Text } from '../ui/Text';
 import { Button } from '../ui/Button';
@@ -27,7 +27,6 @@ const NOTE_OPTIONS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#'
 const NOTE_OPTIONS_FLATS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 
 interface FretboardGameProps {
-  onSettingsPress?: () => void;
   settings: GameSettings['fretboardGame'] | undefined;
 }
 
@@ -37,15 +36,20 @@ interface GamePosition {
   note: string;
 }
 
-export function FretboardGame({ onSettingsPress, settings: gameSettings }: FretboardGameProps) {
+export function FretboardGame({ settings: gameSettings }: FretboardGameProps) {
   const { theme, isDark } = useTheme();
-  
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const isLandscape = windowWidth > windowHeight;
+  const SIDEBAR_WIDTH = 280;
+  const fretboardContainerWidth = isLandscape
+    ? windowWidth - SIDEBAR_WIDTH - spacing[4] * 2 - spacing[2]
+    : undefined;
+
   const [currentPosition, setCurrentPosition] = useState<GamePosition | null>(null);
   const [currentNote, setCurrentNote] = useState<string | null>(null); // For "find" and "listen" modes
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
-  const [streak, setStreak] = useState(0);
-  
+
   // Listen mode state
   const [isListening, setIsListening] = useState(false);
   const [detectedNote, setDetectedNote] = useState<string | null>(null);
@@ -190,7 +194,6 @@ export function FretboardGame({ onSettingsPress, settings: gameSettings }: Fretb
       if (targetNote && areEnharmonic(result.note, targetNote)) {
         console.log('[FretboardGame] CORRECT! Setting isCorrect=true');
         setIsCorrect(true);
-        setStreak(s => s + 1);
         Vibration.vibrate(100);
         
         if (autoAdvance) {
@@ -263,7 +266,6 @@ export function FretboardGame({ onSettingsPress, settings: gameSettings }: Fretb
   // Give up on listen mode
   const handleGiveUp = useCallback(() => {
     setIsCorrect(false);
-    setStreak(0);
     Vibration.vibrate([0, 100, 50, 100]);
     stopListening();
   }, [stopListening]);
@@ -336,11 +338,9 @@ export function FretboardGame({ onSettingsPress, settings: gameSettings }: Fretb
     setIsCorrect(correct);
     
     if (correct) {
-      setStreak(s => s + 1);
       Vibration.vibrate(100);
       playNote(currentPosition.note, 0.4);
     } else {
-      setStreak(0);
       Vibration.vibrate([0, 100, 50, 100]);
     }
   }, [currentPosition, isCorrect]);
@@ -355,11 +355,9 @@ export function FretboardGame({ onSettingsPress, settings: gameSettings }: Fretb
     setIsCorrect(correct);
     
     if (correct) {
-      setStreak(s => s + 1);
       Vibration.vibrate(100);
       playNote(note, 0.4);
     } else {
-      setStreak(0);
       Vibration.vibrate([0, 100, 50, 100]);
     }
   }, [currentNote, isCorrect]);
@@ -386,100 +384,70 @@ export function FretboardGame({ onSettingsPress, settings: gameSettings }: Fretb
       <View style={[styles.container, styles.centered, { backgroundColor: theme.background }]}>
         <Text variant="bodyMedium" color="secondary" style={styles.noOptionsText}>
           No notes available with current settings.
-          {'\n'}Enable natural notes or accidentals.
+          {'\n'}Enable natural notes or accidentals in Settings (header).
         </Text>
-        {onSettingsPress && (
-          <Button variant="primary" onPress={onSettingsPress} style={{ marginTop: spacing[4] }}>
-            Open Settings
-          </Button>
-        )}
       </View>
     );
   }
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.streakContainer}>
-          <FontAwesome name="fire" size={16} color={colors.primary[500]} />
-          <Text variant="labelMedium" style={{ marginLeft: spacing[1] }}>
-            {streak}
-          </Text>
-        </View>
-        
-        {onSettingsPress && (
-          <Pressable
-            onPress={onSettingsPress}
-            style={({ pressed }) => [
-              styles.settingsButton,
-              { 
-                backgroundColor: isDark ? colors.neutral[800] : colors.neutral[100],
-                opacity: pressed ? 0.7 : 1,
-              },
-            ]}
-          >
-            <FontAwesome name="sliders" size={18} color={theme.textSecondary} />
-          </Pressable>
-        )}
-      </View>
-
-      {/* Game prompt */}
-      <Card variant="filled" style={styles.promptCard}>
-        {isIdentifyMode ? (
-          <>
-            <Text variant="labelMedium" color="secondary">
-              What note is at this position?
-            </Text>
-            <View style={styles.positionInfo}>
-              <Text variant="bodySmall" color="muted">
-                String {currentPosition ? currentPosition.string + 1 : '-'}, Fret {currentPosition?.fret ?? '-'}
-              </Text>
-            </View>
-          </>
-        ) : isListenMode ? (
-          <>
-            <Text variant="labelMedium" color="secondary">
-              Play this note on your guitar:
-            </Text>
-            <View style={styles.noteDisplay}>
-              <Text style={[styles.targetNote, { color: colors.primary[500] }]}>
-                {currentNote || '?'}
-              </Text>
-              <Pressable onPress={handlePlayNote} style={styles.playButton}>
-                <FontAwesome name="volume-up" size={20} color={colors.primary[500]} />
-              </Pressable>
-            </View>
-            {/* Detected note display */}
-            {detectedNote && (
-              <View style={styles.detectedNoteContainer}>
-                <Text variant="bodySmall" color="muted">
-                  Detected: <Text style={{ color: areEnharmonic(detectedNote, currentNote || '') ? colors.success.main : colors.error.main, fontWeight: '600' }}>{detectedNote}</Text>
-                  {detectedFrequency && ` (${detectedFrequency.toFixed(1)} Hz)`}
+      <View style={[styles.mainContent, isLandscape && styles.mainContentRow]}>
+        {/* Left column (or full width in portrait): prompt + fretboard */}
+        <View style={[styles.primaryColumn, isLandscape && styles.primaryColumnLandscape]}>
+          <Card variant="filled" style={[styles.promptCard, isLandscape && styles.promptCardLandscape]}>
+            {isIdentifyMode ? (
+              <>
+                <Text variant="labelMedium" color="secondary">
+                  What note is at this position?
                 </Text>
-              </View>
+                <View style={styles.positionInfo}>
+                  <Text variant="bodySmall" color="muted">
+                    String {currentPosition ? currentPosition.string + 1 : '-'}, Fret {currentPosition?.fret ?? '-'}
+                  </Text>
+                </View>
+              </>
+            ) : isListenMode ? (
+              <>
+                <Text variant="labelMedium" color="secondary">
+                  Play this note on your guitar:
+                </Text>
+                <View style={styles.noteDisplay}>
+                  <Text style={[styles.targetNote, isLandscape && styles.targetNoteLandscape, { color: colors.primary[500] }]}>
+                    {currentNote || '?'}
+                  </Text>
+                  <Pressable onPress={handlePlayNote} style={styles.playButton}>
+                    <FontAwesome name="volume-up" size={20} color={colors.primary[500]} />
+                  </Pressable>
+                </View>
+                {detectedNote && (
+                  <View style={styles.detectedNoteContainer}>
+                    <Text variant="bodySmall" color="muted">
+                      Detected: <Text style={{ color: areEnharmonic(detectedNote, currentNote || '') ? colors.success.main : colors.error.main, fontWeight: '600' }}>{detectedNote}</Text>
+                      {detectedFrequency && ` (${detectedFrequency.toFixed(1)} Hz)`}
+                    </Text>
+                  </View>
+                )}
+              </>
+            ) : (
+              <>
+                <Text variant="labelMedium" color="secondary">
+                  Find this note on the fretboard:
+                </Text>
+                <View style={styles.noteDisplay}>
+                  <Text style={[styles.targetNote, isLandscape && styles.targetNoteLandscape, { color: colors.primary[500] }]}>
+                    {currentNote || '?'}
+                  </Text>
+                  <Pressable onPress={handlePlayNote} style={styles.playButton}>
+                    <FontAwesome name="volume-up" size={20} color={colors.primary[500]} />
+                  </Pressable>
+                </View>
+              </>
             )}
-          </>
-        ) : (
-          <>
-            <Text variant="labelMedium" color="secondary">
-              Find this note on the fretboard:
-            </Text>
-            <View style={styles.noteDisplay}>
-              <Text style={[styles.targetNote, { color: colors.primary[500] }]}>
-                {currentNote || '?'}
-              </Text>
-              <Pressable onPress={handlePlayNote} style={styles.playButton}>
-                <FontAwesome name="volume-up" size={20} color={colors.primary[500]} />
-              </Pressable>
-            </View>
-          </>
-        )}
-      </Card>
+          </Card>
 
-      {/* Fretboard */}
-      <View style={styles.fretboardContainer}>
-        <Fretboard
+          <View style={[styles.fretboardContainer, isLandscape && styles.fretboardContainerLandscape]}>
+            <Fretboard
           minFret={gameSettings.minFret}
           maxFret={gameSettings.maxFret}
           highlightedPosition={currentPosition}
@@ -491,9 +459,13 @@ export function FretboardGame({ onSettingsPress, settings: gameSettings }: Fretb
           useFlats={gameSettings.useFlats}
           enabledStrings={gameSettings.strings}
           disabled={isCorrect !== null}
+          containerWidth={fretboardContainerWidth}
         />
-      </View>
+          </View>
+        </View>
 
+        {/* Right column (landscape): note choices, listen controls, feedback, next */}
+        <View style={[styles.sidebarColumn, isLandscape && styles.sidebarColumnLandscape]}>
       {/* Note selection (identify mode) - Piano keyboard layout */}
       {isIdentifyMode && (
         <View style={styles.noteButtonsContainer}>
@@ -684,7 +656,7 @@ export function FretboardGame({ onSettingsPress, settings: gameSettings }: Fretb
       )}
 
       {/* Next button */}
-      <View style={styles.buttonContainer}>
+      <View style={[styles.buttonContainer, isLandscape && styles.buttonContainerLandscape]}>
         <Button
           variant="primary"
           size="lg"
@@ -693,6 +665,8 @@ export function FretboardGame({ onSettingsPress, settings: gameSettings }: Fretb
         >
           {isCorrect === null ? 'Skip' : 'Next'}
         </Button>
+      </View>
+        </View>
       </View>
     </View>
   );
@@ -751,29 +725,37 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: spacing[4],
   },
+  mainContent: {
+    flex: 1,
+    flexDirection: 'column',
+  },
+  mainContentRow: {
+    flexDirection: 'row',
+    gap: spacing[2],
+  },
+  primaryColumn: {
+    flex: 1,
+  },
+  primaryColumnLandscape: {
+    minWidth: 0,
+    flex: 1,
+    overflow: 'hidden',
+  },
+  sidebarColumn: {
+    flexDirection: 'column',
+  },
+  sidebarColumnLandscape: {
+    width: 280,
+    minWidth: 280,
+    justifyContent: 'flex-start',
+    paddingLeft: spacing[2],
+  },
   centered: {
     justifyContent: 'center',
     alignItems: 'center',
   },
   noOptionsText: {
     textAlign: 'center',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing[2],
-  },
-  streakContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  settingsButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   promptCard: {
     alignItems: 'center',
@@ -783,6 +765,15 @@ const styles = StyleSheet.create({
     minHeight: 120,
     overflow: 'visible',
     flexShrink: 0,
+  },
+  promptCardLandscape: {
+    paddingVertical: spacing[2],
+    marginBottom: spacing[2],
+    minHeight: 80,
+  },
+  targetNoteLandscape: {
+    fontSize: 32,
+    lineHeight: 40,
   },
   positionInfo: {
     marginTop: spacing[2],
@@ -806,6 +797,12 @@ const styles = StyleSheet.create({
   },
   fretboardContainer: {
     marginBottom: spacing[4],
+  },
+  fretboardContainerLandscape: {
+    marginBottom: spacing[2],
+    paddingBottom: spacing[4],
+    flex: 1,
+    justifyContent: 'center',
   },
   noteButtonsContainer: {
     alignItems: 'center',
@@ -852,6 +849,10 @@ const styles = StyleSheet.create({
   buttonContainer: {
     marginTop: 'auto',
     paddingBottom: spacing[4],
+  },
+  buttonContainerLandscape: {
+    marginTop: 'auto',
+    paddingBottom: spacing[2],
   },
   // Listen mode styles
   detectedNoteContainer: {

@@ -120,6 +120,27 @@ export default function GamesScreen() {
           comingSoon
         />
       </View>
+
+      {/* Tools Section */}
+      <View style={styles.section}>
+        <Text variant="titleLarge" style={styles.sectionTitle}>
+          Tools
+        </Text>
+
+        <GameCard
+          title="Metronome"
+          description="Steady click at any BPM for practice"
+          icon="clock-o"
+          onPress={() => router.push('/tools/metronome')}
+        />
+
+        <GameCard
+          title="Tuner"
+          description="Detect pitch in real time for tuning"
+          icon="microphone"
+          onPress={() => router.push('/tools/tuner')}
+        />
+      </View>
     </ScrollView>
   );
 }
